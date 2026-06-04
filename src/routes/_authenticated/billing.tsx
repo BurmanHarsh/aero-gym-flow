@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -8,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Wallet, Banknote, CreditCard, Smartphone } from "lucide-react";
 import { toast } from "sonner";
+import { sendReceiptEmail } from "@/lib/aerogym/email.functions";
+
 
 export const Route = createFileRoute("/_authenticated/billing")({
   head: () => ({ meta: [{ title: "Billing · AeroGym OS" }] }),
@@ -118,6 +121,7 @@ function PaymentDialog({ invoice, onClose }: { invoice: Invoice; onClose: () => 
   const [ref, setRef] = useState("");
   const [busy, setBusy] = useState(false);
   const isPaid = invoice.status === "paid";
+  const sendReceipt = useServerFn(sendReceiptEmail);
 
   async function record(e: React.FormEvent) {
     e.preventDefault(); setBusy(true);
@@ -127,8 +131,13 @@ function PaymentDialog({ invoice, onClose }: { invoice: Invoice; onClose: () => 
     if (cents >= invoice.total_cents) {
       await supabase.from("invoices").update({ status: "paid", paid_at: new Date().toISOString() }).eq("id", invoice.id);
     }
+    const { data: m } = await supabase.from("members").select("email, full_name").eq("id", invoice.member_id).maybeSingle();
+    if (m?.email) {
+      sendReceipt({ data: { to: m.email, name: m.full_name, invoiceNumber: invoice.invoice_number, amount: money(cents), method } }).catch(() => {});
+    }
     toast.success("Payment recorded"); setBusy(false); onClose();
   }
+
 
   return (
     <DialogContent>
