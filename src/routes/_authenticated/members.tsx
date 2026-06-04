@@ -11,21 +11,34 @@ import { Search, Plus, Phone, Mail, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { sendWelcomeEmail } from "@/lib/aerogym/email.functions";
 
-
 export const Route = createFileRoute("/_authenticated/members")({
-  head: () => ({ meta: [{ title: "Members · AeroGym OS" }] }),
+  head: () => ({ meta: [{ title: "Members - AeroGym OS" }] }),
   component: MembersPage,
 });
 
 interface Member {
-  id: string; member_code: string; full_name: string; phone: string; email: string | null;
-  status: string; expires_at: string | null; plan_id: string | null; joined_at: string;
+  id: string;
+  member_code: string;
+  full_name: string;
+  phone: string;
+  email: string | null;
+  status: string;
+  expires_at: string | null;
+  plan_id: string | null;
+  joined_at: string;
 }
-interface Plan { id: string; name: string; duration_days: number; price_cents: number; }
+
+interface Plan {
+  id: string;
+  name: string;
+  duration_days: number;
+  price_cents: number;
+}
 
 function MembersPage() {
   const [rows, setRows] = useState<Member[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [planError, setPlanError] = useState("");
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -38,8 +51,10 @@ function MembersPage() {
     ]);
     setRows((m.data ?? []) as Member[]);
     setPlans((p.data ?? []) as Plan[]);
+    setPlanError(p.error?.message ?? "");
     setLoading(false);
   }
+
   useEffect(() => { load(); }, []);
 
   const filtered = rows.filter((r) => {
@@ -52,24 +67,24 @@ function MembersPage() {
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Members</h1>
-          <p className="text-sm text-muted-foreground">{rows.length} total · {rows.filter(r => r.status === "active").length} active</p>
+          <p className="text-sm text-muted-foreground">{rows.length} total - {rows.filter((r) => r.status === "active").length} active</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (next) load(); }}>
           <DialogTrigger asChild>
             <Button className="gradient-primary text-primary-foreground shadow-glow"><Plus className="mr-1 h-4 w-4" /> Add member</Button>
           </DialogTrigger>
-          <AddMemberDialog plans={plans} onClose={() => { setOpen(false); load(); }} />
+          <AddMemberDialog plans={plans} planError={planError} onClose={() => { setOpen(false); load(); }} />
         </Dialog>
       </header>
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name, phone or code…" className="pl-9" />
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name, phone or code..." className="pl-9" />
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-border bg-card">
         {loading ? (
-          <div className="p-10 text-center text-sm text-muted-foreground">Loading members…</div>
+          <div className="p-10 text-center text-sm text-muted-foreground">Loading members...</div>
         ) : filtered.length === 0 ? (
           <div className="p-12 text-center">
             <p className="text-sm font-medium">No members yet</p>
@@ -113,7 +128,7 @@ function StatusPill({ status }: { status: string }) {
   return <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium capitalize ${map[status] ?? "bg-muted"}`}>{status}</span>;
 }
 
-function AddMemberDialog({ plans, onClose }: { plans: Plan[]; onClose: () => void }) {
+function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planError: string; onClose: () => void }) {
   const [full_name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -121,24 +136,35 @@ function AddMemberDialog({ plans, onClose }: { plans: Plan[]; onClose: () => voi
   const [busy, setBusy] = useState(false);
   const sendWelcome = useServerFn(sendWelcomeEmail);
 
+  useEffect(() => {
+    if (!plan_id && plans[0]?.id) setPlanId(plans[0].id);
+  }, [plan_id, plans]);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData.user?.id ?? null;
     const plan = plans.find((p) => p.id === plan_id);
     const expires_at = plan
       ? new Date(Date.now() + plan.duration_days * 86400000).toISOString().slice(0, 10)
       : null;
     const { error, data } = await supabase
       .from("members")
-      .insert({ full_name, phone, email: email || null, plan_id: plan_id || null, expires_at })
+      .insert({ full_name, phone, email: email || null, plan_id: plan_id || null, expires_at, created_by: userId })
       .select()
       .single();
     if (error) { toast.error(error.message); setBusy(false); return; }
     if (plan && data) {
       const total = plan.price_cents;
       await supabase.from("invoices").insert({
-        member_id: data.id, plan_id: plan.id, amount_cents: total, total_cents: total, status: "pending",
+        member_id: data.id,
+        plan_id: plan.id,
+        amount_cents: total,
+        total_cents: total,
+        status: "pending",
         due_date: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
+        created_by: userId,
       });
     }
     if (email) {
@@ -150,7 +176,6 @@ function AddMemberDialog({ plans, onClose }: { plans: Plan[]; onClose: () => voi
     setBusy(false);
     onClose();
   }
-
 
   return (
     <DialogContent>
@@ -166,14 +191,24 @@ function AddMemberDialog({ plans, onClose }: { plans: Plan[]; onClose: () => voi
           <Select value={plan_id} onValueChange={setPlanId}>
             <SelectTrigger><SelectValue placeholder="Select a plan" /></SelectTrigger>
             <SelectContent>
-              {plans.map((p) => (
-                <SelectItem key={p.id} value={p.id}>{p.name} · {p.duration_days}d · ₹{(p.price_cents/100).toLocaleString()}</SelectItem>
+              {plans.length === 0 ? (
+                <SelectItem value="no-plans" disabled>
+                  {planError ? "Could not load plans" : "No active plans found"}
+                </SelectItem>
+              ) : plans.map((p) => (
+                <SelectItem key={p.id} value={p.id}>{p.name} - {p.duration_days}d - Rs {(p.price_cents / 100).toLocaleString()}</SelectItem>
               ))}
             </SelectContent>
           </Select>
+          {planError && <p className="mt-1 text-xs text-destructive">{planError}</p>}
+          {!planError && plans.length === 0 && (
+            <p className="mt-1 text-xs text-muted-foreground">Add a membership plan from the admin dashboard first.</p>
+          )}
         </div>
         <DialogFooter>
-          <Button type="submit" disabled={busy} className="gradient-primary text-primary-foreground">{busy ? "Saving…" : "Add member"}</Button>
+          <Button type="submit" disabled={busy || plans.length === 0} className="gradient-primary text-primary-foreground">
+            {busy ? "Saving..." : "Add member"}
+          </Button>
         </DialogFooter>
       </form>
     </DialogContent>

@@ -1,15 +1,28 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { getIndiaDayRange } from "@/lib/aerogym/dates";
 
 export const getDashboardStats = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { supabase } = context;
+    const { supabase, userId } = context;
     const now = new Date();
-    const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    const today = getIndiaDayRange(now);
     const startMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
     const startPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
     const expiryWindow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const { data: isAdmin } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
+    const monthRevenueQuery = supabase.from("payments").select("amount_cents").gte("paid_at", startMonth);
+    const prevMonthRevenueQuery = supabase.from("payments").select("amount_cents").gte("paid_at", startPrevMonth).lt("paid_at", startMonth);
+    const pendingInvoicesQuery = supabase.from("invoices").select("*", { count: "exact", head: true }).eq("status", "pending");
+    const paidInvoicesThisMonthQuery = supabase.from("invoices").select("*", { count: "exact", head: true }).eq("status", "paid").gte("issued_at", startMonth);
+
+    if (!isAdmin) {
+      monthRevenueQuery.eq("recorded_by", userId);
+      prevMonthRevenueQuery.eq("recorded_by", userId);
+      pendingInvoicesQuery.eq("created_by", userId);
+      paidInvoicesThisMonthQuery.eq("created_by", userId);
+    }
 
     const [
       { count: totalMembers },
@@ -26,15 +39,15 @@ export const getDashboardStats = createServerFn({ method: "GET" })
     ] = await Promise.all([
       supabase.from("members").select("*", { count: "exact", head: true }),
       supabase.from("members").select("*", { count: "exact", head: true }).eq("status", "active"),
-      supabase.from("attendance_records").select("*", { count: "exact", head: true }).gte("check_in_at", startToday),
+      supabase.from("attendance_records").select("*", { count: "exact", head: true }).gte("check_in_at", today.start).lt("check_in_at", today.end),
       supabase.from("members").select("*", { count: "exact", head: true }).lte("expires_at", expiryWindow).gte("expires_at", new Date().toISOString().slice(0,10)),
       supabase.from("leads").select("*", { count: "exact", head: true }).in("status", ["new","contacted","trial"]),
       supabase.from("leads").select("*", { count: "exact", head: true }).eq("status", "converted"),
       supabase.from("leads").select("*", { count: "exact", head: true }),
-      supabase.from("payments").select("amount_cents").gte("paid_at", startMonth),
-      supabase.from("payments").select("amount_cents").gte("paid_at", startPrevMonth).lt("paid_at", startMonth),
-      supabase.from("invoices").select("*", { count: "exact", head: true }).eq("status", "pending"),
-      supabase.from("invoices").select("*", { count: "exact", head: true }).eq("status", "paid").gte("issued_at", startMonth),
+      monthRevenueQuery,
+      prevMonthRevenueQuery,
+      pendingInvoicesQuery,
+      paidInvoicesThisMonthQuery,
     ]);
 
     const monthRev = (monthRevenue ?? []).reduce((s, r) => s + (r.amount_cents ?? 0), 0);
