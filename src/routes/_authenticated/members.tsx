@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, Plus, Phone, Mail, Calendar } from "lucide-react";
 import { toast } from "sonner";
+import { sendWelcomeEmail } from "@/lib/aerogym/email.functions";
+
 
 export const Route = createFileRoute("/_authenticated/members")({
   head: () => ({ meta: [{ title: "Members · AeroGym OS" }] }),
@@ -116,6 +119,7 @@ function AddMemberDialog({ plans, onClose }: { plans: Plan[]; onClose: () => voi
   const [email, setEmail] = useState("");
   const [plan_id, setPlanId] = useState<string>(plans[0]?.id ?? "");
   const [busy, setBusy] = useState(false);
+  const sendWelcome = useServerFn(sendWelcomeEmail);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -137,10 +141,16 @@ function AddMemberDialog({ plans, onClose }: { plans: Plan[]; onClose: () => voi
         due_date: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
       });
     }
+    if (email) {
+      sendWelcome({ data: { to: email, name: full_name, plan: plan?.name, expiresAt: expires_at ?? undefined } })
+        .then(() => toast.success("Welcome email sent"))
+        .catch((e) => toast.message("Member added", { description: `Email skipped: ${e.message}` }));
+    }
     toast.success("Member added");
     setBusy(false);
     onClose();
   }
+
 
   return (
     <DialogContent>
