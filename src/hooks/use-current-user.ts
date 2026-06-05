@@ -11,6 +11,7 @@ export interface CurrentUser {
   isStaff: boolean;
   fullName: string;
   email: string;
+  avatarUrl: string;
   loading: boolean;
 }
 
@@ -18,6 +19,7 @@ export function useCurrentUser(): CurrentUser {
   const [user, setUser] = useState<User | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [fullName, setFullName] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -29,11 +31,12 @@ export function useCurrentUser(): CurrentUser {
       if (data.user) {
         const [{ data: r }, { data: p }] = await Promise.all([
           supabase.from("user_roles").select("role").eq("user_id", data.user.id),
-          supabase.from("profiles").select("full_name").eq("id", data.user.id).maybeSingle(),
+          supabase.from("profiles").select("full_name, avatar_url").eq("id", data.user.id).maybeSingle(),
         ]);
         if (!active) return;
         setRoles(((r ?? []) as Array<{ role: AppRole }>).map((x) => x.role));
         setFullName(p?.full_name ?? data.user.email ?? "");
+        setAvatarUrl(p?.avatar_url ?? "");
       }
       setLoading(false);
     }
@@ -52,6 +55,7 @@ export function useCurrentUser(): CurrentUser {
     isStaff: roles.length > 0,
     fullName,
     email: user?.email ?? "",
+    avatarUrl,
     loading,
   };
 }

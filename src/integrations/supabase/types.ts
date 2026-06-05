@@ -88,6 +88,45 @@ export type Database = {
         }
         Relationships: []
       }
+      expenses: {
+        Row: {
+          amount_cents: number
+          category: string
+          created_at: string
+          date: string
+          description: string | null
+          id: string
+          payment_method: string
+          recorded_by: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          amount_cents: number
+          category: string
+          created_at?: string
+          date?: string
+          description?: string | null
+          id?: string
+          payment_method?: string
+          recorded_by?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          amount_cents?: number
+          category?: string
+          created_at?: string
+          date?: string
+          description?: string | null
+          id?: string
+          payment_method?: string
+          recorded_by?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           amount_cents: number
@@ -156,6 +195,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      inventory_items: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          id: string
+          min_stock_level: number
+          name: string
+          purchase_price_cents: number
+          quantity: number
+          sale_price_cents: number | null
+          supplier: string | null
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          min_stock_level?: number
+          name: string
+          purchase_price_cents?: number
+          quantity?: number
+          sale_price_cents?: number | null
+          supplier?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          min_stock_level?: number
+          name?: string
+          purchase_price_cents?: number
+          quantity?: number
+          sale_price_cents?: number | null
+          supplier?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       leads: {
         Row: {
@@ -226,6 +307,7 @@ export type Database = {
           gender: string | null
           id: string
           joined_at: string
+          medical_info: string | null
           member_code: string
           notes: string | null
           phone: string
@@ -246,6 +328,7 @@ export type Database = {
           gender?: string | null
           id?: string
           joined_at?: string
+          medical_info?: string | null
           member_code?: string
           notes?: string | null
           phone: string
@@ -266,6 +349,7 @@ export type Database = {
           gender?: string | null
           id?: string
           joined_at?: string
+          medical_info?: string | null
           member_code?: string
           notes?: string | null
           phone?: string
@@ -391,6 +475,56 @@ export type Database = {
           },
         ]
       }
+      employees: {
+        Row: {
+          created_at: string
+          email: string | null
+          hire_date: string
+          id: string
+          name: string
+          phone: string | null
+          profile_id: string | null
+          role: string
+          salary_cents: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          hire_date?: string
+          id?: string
+          name: string
+          phone?: string | null
+          profile_id?: string | null
+          role: string
+          salary_cents?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          hire_date?: string
+          id?: string
+          name?: string
+          phone?: string | null
+          profile_id?: string | null
+          role?: string
+          salary_cents?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employees_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -439,6 +573,39 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
           value?: Json
+        }
+        Relationships: []
+      }
+      trainers: {
+        Row: {
+          avatar: string | null
+          created_at: string
+          id: string
+          name: string
+          shift: string
+          specialization: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          avatar?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          shift: string
+          specialization: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          avatar?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          shift?: string
+          specialization?: string
+          status?: string
+          updated_at?: string
         }
         Relationships: []
       }

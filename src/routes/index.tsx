@@ -6,7 +6,7 @@ import { Dumbbell, BarChart3, Users, QrCode, Wallet, ShieldCheck, ArrowRight } f
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "AeroGym OS — Run your gym like a SaaS" },
+      { title: "Tank by Tapan — Run your gym like a SaaS" },
       { name: "description", content: "Members, attendance, billing, and analytics — the modern operating system for premium gyms." },
     ],
   }),
@@ -31,7 +31,7 @@ function Landing() {
           <div className="grid h-9 w-9 place-items-center rounded-xl gradient-primary shadow-glow">
             <Dumbbell className="h-5 w-5 text-primary-foreground" />
           </div>
-          <span className="text-lg font-semibold tracking-tight">AeroGym <span className="text-muted-foreground">OS</span></span>
+          <span className="text-lg font-semibold tracking-tight">Tank by <span className="text-muted-foreground">Tapan</span></span>
         </div>
         <Link
           to={authed ? "/dashboard" : "/auth"}
@@ -48,7 +48,7 @@ function Landing() {
           Built for modern gyms
         </div>
         <h1 className="text-5xl font-bold leading-[1.05] tracking-tight md:text-7xl">
-          Run your gym like a <span className="gradient-text">SaaS</span>.
+          Drip Sweat. Track Growth. <span className="gradient-text">Build Legends</span>.
         </h1>
         <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
           Members, attendance, invoices, leads and analytics — unified in one beautiful operating system.
@@ -85,7 +85,7 @@ function Landing() {
       </section>
 
       <footer className="relative z-10 border-t border-border/50 px-6 py-8 text-center text-xs text-muted-foreground">
-        AeroGym OS · Built on Lovable
+        Tank by Tapan
       </footer>
     </div>
   );

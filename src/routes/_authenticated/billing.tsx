@@ -15,7 +15,7 @@ import { sendReceiptEmail } from "@/lib/aerogym/email.functions";
 
 
 export const Route = createFileRoute("/_authenticated/billing")({
-  head: () => ({ meta: [{ title: "Billing · AeroGym OS" }] }),
+  head: () => ({ meta: [{ title: "Billing · Tank by Tapan" }] }),
   component: BillingPage,
 });
 

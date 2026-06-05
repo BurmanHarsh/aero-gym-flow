@@ -36,18 +36,22 @@ export const getDashboardStats = createServerFn({ method: "GET" })
       { data: prevMonthRevenue },
       { count: pendingInvoices },
       { count: paidInvoicesThisMonth },
+      { count: expiredMembers },
+      { count: newRegistrations },
     ] = await Promise.all([
       supabase.from("members").select("*", { count: "exact", head: true }),
       supabase.from("members").select("*", { count: "exact", head: true }).eq("status", "active"),
       supabase.from("attendance_records").select("*", { count: "exact", head: true }).gte("check_in_at", today.start).lt("check_in_at", today.end),
-      supabase.from("members").select("*", { count: "exact", head: true }).lte("expires_at", expiryWindow).gte("expires_at", new Date().toISOString().slice(0,10)),
-      supabase.from("leads").select("*", { count: "exact", head: true }).in("status", ["new","contacted","trial"]),
+      supabase.from("members").select("*", { count: "exact", head: true }).lte("expires_at", expiryWindow).gte("expires_at", new Date().toISOString().slice(0, 10)),
+      supabase.from("leads").select("*", { count: "exact", head: true }).in("status", ["new", "contacted", "trial"]),
       supabase.from("leads").select("*", { count: "exact", head: true }).eq("status", "converted"),
       supabase.from("leads").select("*", { count: "exact", head: true }),
       monthRevenueQuery,
       prevMonthRevenueQuery,
       pendingInvoicesQuery,
       paidInvoicesThisMonthQuery,
+      supabase.from("members").select("*", { count: "exact", head: true }).eq("status", "expired"),
+      supabase.from("members").select("*", { count: "exact", head: true }).gte("joined_at", startMonth.slice(0, 10)),
     ]);
 
     const monthRev = (monthRevenue ?? []).reduce((s, r) => s + (r.amount_cents ?? 0), 0);
@@ -61,6 +65,8 @@ export const getDashboardStats = createServerFn({ method: "GET" })
     return {
       totalMembers: totalMembers ?? 0,
       activeMembers: activeMembers ?? 0,
+      expiredMembers: expiredMembers ?? 0,
+      newRegistrations: newRegistrations ?? 0,
       checkInsToday: checkInsToday ?? 0,
       expiringSoon: expiringSoon ?? 0,
       activeLeads: activeLeads ?? 0,

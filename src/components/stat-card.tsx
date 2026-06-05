@@ -7,7 +7,7 @@ interface StatCardProps {
   value: string | number;
   delta?: number;
   icon: LucideIcon;
-  tone?: "primary" | "secondary" | "success" | "warning" | "info";
+  tone?: "primary" | "secondary" | "success" | "warning" | "info" | "destructive";
   hint?: string;
 }
 
@@ -17,6 +17,7 @@ const TONE: Record<NonNullable<StatCardProps["tone"]>, string> = {
   success: "from-success/20 to-success/0 text-success",
   warning: "from-warning/20 to-warning/0 text-warning",
   info: "from-info/20 to-info/0 text-info",
+  destructive: "from-destructive/20 to-destructive/0 text-destructive",
 };
 
 export function StatCard({ label, value, delta, icon: Icon, tone = "primary", hint }: StatCardProps) {

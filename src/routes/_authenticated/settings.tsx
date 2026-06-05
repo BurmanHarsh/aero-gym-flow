@@ -7,11 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Sun, Moon, Monitor, LogOut, ShieldCheck, Bell, UserCircle2, Palette } from "lucide-react";
+import { Sun, Moon, Monitor, LogOut, ShieldCheck, Bell, UserCircle2, Palette, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/settings")({
-  head: () => ({ meta: [{ title: "Settings · AeroGym OS" }] }),
+  head: () => ({ meta: [{ title: "Settings · Tank by Tapan" }] }),
   component: SettingsPage,
 });
 
@@ -27,6 +27,14 @@ function SettingsPage() {
   const me = useCurrentUser();
   const navigate = useNavigate();
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const urlTab = new URLSearchParams(window.location.search).get("tab");
+    if (urlTab === "appearance" || urlTab === "account" || urlTab === "notifications" || urlTab === "security") {
+      setTab(urlTab);
+    }
+  }, []);
+
   async function logout() {
     await supabase.auth.signOut();
     toast.success("Signed out");
@@ -37,7 +45,7 @@ function SettingsPage() {
     <div className="mx-auto max-w-4xl space-y-6">
       <header>
         <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Settings</h1>
-        <p className="text-sm text-muted-foreground">Personalize AeroGym OS to fit how you work.</p>
+        <p className="text-sm text-muted-foreground">Personalize Tank by Tapan to fit how you work.</p>
       </header>
 
       <div className="grid gap-6 md:grid-cols-[200px_1fr]">
@@ -75,7 +83,7 @@ function AppearanceTab() {
     <div className="space-y-6">
       <div>
         <h2 className="text-base font-semibold">Theme</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Choose how AeroGym OS looks. The system option follows your device setting.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Choose how Tank by Tapan looks. The system option follows your device setting.</p>
       </div>
       <div className="grid grid-cols-3 gap-3">
         {opts.map((o) => {
@@ -98,11 +106,57 @@ function AccountTab({ me }: { me: ReturnType<typeof useCurrentUser> }) {
   const [name, setName] = useState(me.fullName);
   const [phone, setPhone] = useState("");
   const [pw, setPw] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [avatar, setAvatar] = useState(me.avatarUrl);
+
   useEffect(() => { setName(me.fullName); }, [me.fullName]);
+  useEffect(() => { setAvatar(me.avatarUrl); }, [me.avatarUrl]);
   useEffect(() => {
     if (!me.user) return;
     supabase.from("profiles").select("phone").eq("id", me.user.id).maybeSingle().then(({ data }) => setPhone(data?.phone ?? ""));
   }, [me.user]);
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !me.user) return;
+    setUploading(true);
+
+    const fileExt = file.name.split(".").pop();
+    const filePath = `avatars/${me.user.id}-${Math.random()}.${fileExt}`;
+
+    try {
+      const { error: uploadError } = await supabase.storage.from("photos").upload(filePath, file);
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage.from("photos").getPublicUrl(filePath);
+
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ avatar_url: publicUrl })
+        .eq("id", me.user.id);
+
+      if (updateError) throw updateError;
+
+      // Bidirectional sync: Also update members table if a member with the same email exists
+      if (me.email) {
+        await supabase
+          .from("members")
+          .update({ photo_url: publicUrl })
+          .eq("email", me.email);
+      }
+
+      setAvatar(publicUrl);
+      toast.success("Profile photo updated successfully");
+      // Force reload auth state to update navbar
+      if (typeof window !== "undefined") {
+        window.location.reload();
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to upload photo");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   async function saveProfile(e: React.FormEvent) {
     e.preventDefault();
@@ -122,8 +176,43 @@ function AccountTab({ me }: { me: ReturnType<typeof useCurrentUser> }) {
     <div className="space-y-8">
       <div>
         <h2 className="text-base font-semibold">Profile</h2>
-        <p className="mt-1 text-sm text-muted-foreground">{me.email} · <span className="capitalize">{me.isAdmin ? "Admin" : "Front desk"}</span></p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {me.email} · <span className="capitalize">{me.isAdmin ? "Admin" : "Front desk"}</span>
+          {" · "}
+          <label htmlFor="avatar-upload" className="cursor-pointer text-primary hover:underline">
+            {avatar ? "Change photo" : "Upload photo"}
+          </label>
+          <input id="avatar-upload" type="file" accept="image/*" onChange={handlePhotoUpload} disabled={uploading} className="hidden" />
+          {uploading && <span className="ml-2 text-xs text-muted-foreground animate-pulse">Uploading...</span>}
+        </p>
       </div>
+
+      {avatar && (
+        <div className="flex items-center gap-3 border-b border-border/40 pb-4">
+          <img src={avatar} alt={name} className="h-14 w-14 rounded-xl object-cover border border-border" />
+          <button
+            type="button"
+            onClick={async () => {
+              if (!me.user) return;
+              const { error } = await supabase.from("profiles").update({ avatar_url: null }).eq("id", me.user.id);
+              if (error) return toast.error(error.message);
+              
+              // Bidirectional sync: Also remove from members table if a member with the same email exists
+              if (me.email) {
+                await supabase.from("members").update({ photo_url: null }).eq("email", me.email);
+              }
+
+              setAvatar("");
+              toast.success("Profile photo removed");
+              if (typeof window !== "undefined") window.location.reload();
+            }}
+            className="text-xs text-destructive hover:underline"
+          >
+            Remove photo
+          </button>
+        </div>
+      )}
+
       <form onSubmit={saveProfile} className="space-y-3">
         <div><Label>Full name</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
         <div><Label>Phone</Label><Input value={phone} onChange={(e) => setPhone(e.target.value)} /></div>

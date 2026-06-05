@@ -2,27 +2,64 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-const FROM = "AeroGym OS <onboarding@resend.dev>";
+const FROM = "Tank by Tapan <onboarding@resend.dev>";
 
 async function send(to: string, subject: string, html: string) {
   const key = process.env.RESEND_API_KEY;
   if (!key) throw new Error("RESEND_API_KEY not configured");
+  
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
     body: JSON.stringify({ from: FROM, to: [to], subject, html }),
   });
-  if (!res.ok) throw new Error(`Resend ${res.status}: ${await res.text()}`);
+  
+  if (!res.ok) {
+    const status = res.status;
+    const text = await res.text();
+    
+    // Check if this is a Resend sandbox restriction error
+    if (status === 403 && text.includes("only send testing emails")) {
+      const match = text.match(/\(([^)]+)\)/);
+      if (match && match[1]) {
+        const fallbackEmail = match[1];
+        console.log(`[Resend Sandbox] Redirecting email from ${to} to verified test email ${fallbackEmail}`);
+        
+        // Re-try sending to the verified fallback email with modified subject
+        const retryRes = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+          body: JSON.stringify({
+            from: FROM,
+            to: [fallbackEmail],
+            subject: `[Test Sandbox for ${to}] ${subject}`,
+            html: `
+              <div style="background:#4b5563;color:white;padding:12px;margin-bottom:16px;border-radius:8px;font-size:13px;font-family:sans-serif">
+                <strong>Resend Sandbox Redirection:</strong> This email was originally addressed to <strong>${to}</strong>, but was redirected to you because your Resend domain is not yet verified.
+              </div>
+            ` + html
+          }),
+        });
+        
+        if (retryRes.ok) {
+          return retryRes.json();
+        }
+      }
+    }
+    
+    throw new Error(`Resend ${status}: ${text}`);
+  }
+  
   return res.json();
 }
 
 const shell = (title: string, body: string) => `
 <div style="font-family:ui-sans-serif,system-ui,sans-serif;background:#0b1020;padding:32px;color:#e6e9f2">
   <div style="max-width:520px;margin:auto;background:#111733;border:1px solid #1f2747;border-radius:16px;padding:32px">
-    <div style="font-weight:700;font-size:18px;background:linear-gradient(135deg,#14b8a6,#a855f7);-webkit-background-clip:text;color:transparent">AeroGym OS</div>
+    <div style="font-weight:700;font-size:18px;background:linear-gradient(135deg,#14b8a6,#a855f7);-webkit-background-clip:text;color:transparent">Tank by Tapan</div>
     <h1 style="font-size:22px;margin:16px 0 8px">${title}</h1>
     <div style="font-size:14px;line-height:1.6;color:#c9cfe0">${body}</div>
-    <div style="margin-top:24px;font-size:11px;color:#7b8299">Sent by your gym via AeroGym OS</div>
+    <div style="margin-top:24px;font-size:11px;color:#7b8299">Sent by your gym via Tank by Tapan</div>
   </div>
 </div>`;
 

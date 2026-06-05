@@ -61,7 +61,7 @@ export const createStripeCheckoutSession = createServerFn({ method: "POST" })
     const successUrl = `${data.origin}/billing?stripe_session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${data.origin}/billing`;
     const member = Array.isArray(invoice.member) ? invoice.member[0] : invoice.member;
-    const description = `AeroGym invoice ${invoice.invoice_number}`;
+    const description = `Tank by Tapan invoice ${invoice.invoice_number}`;
     const params = new URLSearchParams();
 
     params.append("mode", "payment");

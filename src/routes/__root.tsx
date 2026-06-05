@@ -10,7 +10,6 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
-import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -39,9 +38,6 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
-  useEffect(() => {
-    reportLovableError(error, { boundary: "tanstack_root_error_component" });
-  }, [error]);
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
@@ -66,9 +62,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { name: "theme-color", content: "#0f1419" },
-      { title: "AeroGym OS — Modern Gym Management" },
-      { name: "description", content: "AeroGym OS is the modern operating system for gyms: members, attendance, billing, and analytics in one premium dashboard." },
-      { property: "og:title", content: "AeroGym OS" },
+      { title: "Tank by Tapan — Modern Gym Management" },
+      { name: "description", content: "Tank by Tapan is the modern operating system for gyms: members, attendance, billing, and analytics in one premium dashboard." },
+      { property: "og:title", content: "Tank by Tapan" },
       { property: "og:description", content: "The modern operating system for gyms." },
       { property: "og:type", content: "website" },
     ],

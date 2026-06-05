@@ -10,7 +10,7 @@ import { Plus, Phone, Mail } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/leads")({
-  head: () => ({ meta: [{ title: "Leads · AeroGym OS" }] }),
+  head: () => ({ meta: [{ title: "Leads · Tank by Tapan" }] }),
   component: LeadsPage,
 });
 

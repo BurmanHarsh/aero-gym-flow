@@ -27,6 +27,7 @@ import {
   TrendingUp,
   UserCheck,
   UserPlus,
+  UserMinus,
   Users,
   Wallet,
 } from "lucide-react";
@@ -34,13 +35,15 @@ import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Too
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
-  head: () => ({ meta: [{ title: "Dashboard - AeroGym OS" }] }),
+  head: () => ({ meta: [{ title: "Dashboard - Tank by Tapan" }] }),
   component: Dashboard,
 });
 
 interface DashboardStats {
   totalMembers: number;
   activeMembers: number;
+  expiredMembers: number;
+  newRegistrations: number;
   checkInsToday: number;
   expiringSoon: number;
   activeLeads: number;
@@ -131,8 +134,10 @@ function AdminDashboard({ stats: d, revenue, attendance }: { stats?: DashboardSt
     <div className="space-y-8">
       <DashboardHeader title="Admin command center" subtitle="Revenue, growth, collection health, and staff controls." />
 
-      <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
         <StatCard label="Total members" value={d?.totalMembers ?? "-"} icon={Users} tone="primary" hint={`${d?.activeMembers ?? 0} active`} />
+        <StatCard label="New registrations" value={d?.newRegistrations ?? "-"} icon={UserPlus} tone="info" hint="This calendar month" />
+        <StatCard label="Expired memberships" value={d?.expiredMembers ?? "-"} icon={UserMinus} tone="destructive" />
         <StatCard label="Monthly revenue" value={d ? fmtMoney(d.monthRevenueCents) : "-"} delta={d?.revenueDelta} icon={Wallet} tone="success" />
         <StatCard label="Conversion rate" value={d ? `${d.conversionRate.toFixed(1)}%` : "-"} icon={Percent} tone="secondary" />
         <StatCard label="Collection rate" value={d ? `${d.collectionRate.toFixed(0)}%` : "-"} icon={TrendingUp} tone="success" />
@@ -160,12 +165,14 @@ function AdminDashboard({ stats: d, revenue, attendance }: { stats?: DashboardSt
       </section>
 
       <section className="grid gap-4 lg:grid-cols-3">
-        <Panel>
+        <Panel className="lg:col-span-2">
           <PanelTitle title="Attendance - last 14 days" subtitle="Daily check-ins" />
           <AttendanceChart data={attendance} />
         </Panel>
-        <HealthItem label="Revenue risk" value={d?.pendingInvoices ?? 0} hint="pending invoices" icon={Receipt} tone="warning" />
-        <HealthItem label="Retention watch" value={d?.expiringSoon ?? 0} hint="members expiring soon" icon={AlertTriangle} tone="warning" />
+        <div className="space-y-4">
+          <HealthItem label="Revenue risk" value={d?.pendingInvoices ?? 0} hint="pending invoices" icon={Receipt} tone="warning" />
+          <HealthItem label="Retention watch" value={d?.expiringSoon ?? 0} hint="members expiring soon" icon={AlertTriangle} tone="warning" />
+        </div>
       </section>
     </div>
   );
@@ -459,3 +466,5 @@ function FocusRow({ label, done }: { label: string; done: boolean }) {
     </div>
   );
 }
+
+

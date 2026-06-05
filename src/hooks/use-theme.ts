@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 export type Theme = "light" | "dark" | "system";
-const KEY = "aerogym-theme";
+const KEY = "tank-theme";
 
 function applyTheme(t: Theme) {
   if (typeof window === "undefined") return;

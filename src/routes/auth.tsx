@@ -8,7 +8,7 @@ import { Dumbbell, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/auth")({
-  head: () => ({ meta: [{ title: "Sign in · AeroGym OS" }] }),
+  head: () => ({ meta: [{ title: "Sign in · Tank by Tapan" }] }),
   component: AuthPage,
 });
 
@@ -76,7 +76,7 @@ function AuthPage() {
             <div className="grid h-10 w-10 place-items-center rounded-xl bg-white/15 backdrop-blur">
               <Dumbbell className="h-5 w-5" />
             </div>
-            <span className="text-lg font-semibold">AeroGym OS</span>
+            <span className="text-lg font-semibold">Tank by <span className="text-muted-foreground">Tapan</span></span>
           </div>
           <div>
             <h2 className="text-4xl font-bold leading-tight">The operating system for modern gyms.</h2>
@@ -84,7 +84,7 @@ function AuthPage() {
               One dashboard for members, attendance, billing, leads and analytics. Built for daily use.
             </p>
           </div>
-          <div className="text-xs text-primary-foreground/70">© AeroGym OS</div>
+          <div className="text-xs text-primary-foreground/70">© Tank by Tapan</div>
         </div>
       </div>
 
@@ -96,11 +96,11 @@ function AuthPage() {
             <div className="grid h-9 w-9 place-items-center rounded-xl gradient-primary">
               <Dumbbell className="h-5 w-5 text-primary-foreground" />
             </div>
-            <span className="font-semibold">AeroGym OS</span>
+            <span className="font-semibold">Tank by <span className="text-muted-foreground">Tapan</span></span>
           </div>
           <h1 className="text-2xl font-bold">{mode === "signin" ? "Welcome back" : "Create your account"}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {mode === "signin" ? "Sign in to continue to AeroGym OS." : "The first account becomes the gym admin."}
+            {mode === "signin" ? "Sign in to continue to Tank by Tapan." : "The first account becomes the gym admin."}
           </p>
 
           <Button onClick={handleGoogle} disabled={loading} variant="outline" className="mt-6 w-full">
@@ -134,7 +134,7 @@ function AuthPage() {
           </form>
 
           <p className="mt-6 text-center text-sm text-muted-foreground">
-            {mode === "signin" ? "New to AeroGym?" : "Already have an account?"}{" "}
+            {mode === "signin" ? "New to Tank by Tapan?" : "Already have an account?"}{" "}
             <button onClick={() => setMode(mode === "signin" ? "signup" : "signin")} className="font-medium text-primary hover:underline">
               {mode === "signin" ? "Create an account" : "Sign in"}
             </button>

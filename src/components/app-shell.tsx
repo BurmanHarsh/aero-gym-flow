@@ -12,6 +12,8 @@ import {
   Bell,
   Menu,
   Search,
+  Wallet,
+  Package,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useCurrentUser } from "@/hooks/use-current-user";
@@ -24,10 +26,13 @@ const PRIMARY: NavItem[] = [
   { to: "/members", label: "Members", icon: Users },
   { to: "/leads", label: "Leads", icon: UserPlus },
   { to: "/attendance", label: "Attendance", icon: QrCode },
+  { to: "/trainers", label: "Trainers", icon: Dumbbell },
   { to: "/billing", label: "Billing", icon: Receipt },
 ];
 const ADMIN: NavItem[] = [
   { to: "/employees", label: "Employees", icon: UsersRound, adminOnly: true },
+  { to: "/expenses", label: "Expenses", icon: Wallet, adminOnly: true },
+  { to: "/inventory", label: "Inventory", icon: Package, adminOnly: true },
   { to: "/audit", label: "Audit logs", icon: ShieldCheck, adminOnly: true },
 ];
 
@@ -52,20 +57,20 @@ export function AppShell({ children }: { children: ReactNode }) {
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-sidebar-border bg-sidebar transition-all md:flex",
-          collapsed ? "w-[72px]" : "w-64"
+          collapsed ? "w-18" : "w-64"
         )}
       >
-        <div className="flex h-16 items-center gap-2 px-4">
+        <Link to="/dashboard" className="flex h-16 items-center gap-2 px-4">
           <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl gradient-primary shadow-glow">
             <Dumbbell className="h-5 w-5 text-primary-foreground" />
           </div>
           {!collapsed && (
             <div className="leading-tight">
-              <div className="text-sm font-semibold">AeroGym <span className="text-muted-foreground">OS</span></div>
+              <div className="text-sm font-semibold">Tank by <span className="text-muted-foreground">Tapan</span></div>
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{me.isAdmin ? "Admin" : "Front desk"}</div>
             </div>
           )}
-        </div>
+        </Link>
 
         <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 pb-6 scrollbar-thin">
           <SectionLabel collapsed={collapsed}>Workspace</SectionLabel>
@@ -95,7 +100,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       {/* Main content */}
-      <div className={cn("flex min-h-screen flex-col transition-all", "md:pl-64", collapsed && "md:pl-[72px]")}>
+      <div className={cn("flex min-h-screen flex-col transition-all", "md:pl-64", collapsed && "md:pl-18")}>
         {/* Top bar */}
         <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-border/60 bg-background/70 px-4 backdrop-blur md:px-8">
           <div className="flex flex-1 items-center gap-3">
@@ -116,15 +121,19 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Bell className="h-4 w-4" />
             <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-primary" />
           </button>
-          <div className="hidden items-center gap-2 rounded-lg border border-border bg-card/40 px-2.5 py-1.5 md:flex">
-            <div className="grid h-7 w-7 place-items-center rounded-md gradient-primary text-[11px] font-semibold text-primary-foreground">
-              {(me.fullName || me.email || "U").slice(0, 1).toUpperCase()}
-            </div>
+          <Link to="/settings" search={{ tab: "account" }} className="hidden items-center gap-2 rounded-lg border border-border bg-card/40 px-2.5 py-1.5 md:flex hover:bg-card">
+            {me.avatarUrl ? (
+              <img src={me.avatarUrl} alt={me.fullName} className="h-7 w-7 rounded-md object-cover" />
+            ) : (
+              <div className="grid h-7 w-7 place-items-center rounded-md gradient-primary text-[11px] font-semibold text-primary-foreground">
+                {(me.fullName || me.email || "U").slice(0, 1).toUpperCase()}
+              </div>
+            )}
             <div className="leading-tight">
               <div className="text-xs font-medium">{me.fullName || me.email}</div>
               <div className="text-[10px] uppercase text-muted-foreground">{me.isAdmin ? "Admin" : "Front desk"}</div>
             </div>
-          </div>
+          </Link>
         </header>
 
         <main className="flex-1 px-4 pb-28 pt-6 md:px-8 md:pb-12">{children}</main>
