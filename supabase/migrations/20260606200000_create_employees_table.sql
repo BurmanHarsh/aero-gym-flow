@@ -33,11 +33,11 @@ CREATE POLICY "staff read employees" ON public.employees
   FOR SELECT TO authenticated
   USING (public.is_staff(auth.uid()));
 
--- Write policy: Allow only admins to manage employees
+-- Write policy: Allow staff members to manage employees
 CREATE POLICY "admin manage employees" ON public.employees
   FOR ALL TO authenticated
-  USING (public.has_role(auth.uid(), 'admin'))
-  WITH CHECK (public.has_role(auth.uid(), 'admin'));
+  USING (public.is_staff(auth.uid()))
+  WITH CHECK (public.is_staff(auth.uid()));
 
 -- Trigger for touch_updated_at
 CREATE TRIGGER touch_employees_updated_at BEFORE UPDATE ON public.employees

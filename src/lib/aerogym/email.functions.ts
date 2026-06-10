@@ -42,7 +42,11 @@ async function send(to: string, subject: string, html: string) {
         });
         
         if (retryRes.ok) {
+          console.log(`[Resend Sandbox] Redirected successfully to ${fallbackEmail}`);
           return retryRes.json();
+        } else {
+          const retryText = await retryRes.text();
+          console.error(`[Resend Sandbox] Redirection failed with status ${retryRes.status}: ${retryText}`);
         }
       }
     }

@@ -20,10 +20,6 @@ BEGIN
     INSERT INTO public.user_roles (user_id, role)
     VALUES (NEW.id, 'admin')
     ON CONFLICT DO NOTHING;
-  ELSE
-    INSERT INTO public.user_roles (user_id, role)
-    VALUES (NEW.id, 'front_desk')
-    ON CONFLICT DO NOTHING;
   END IF;
 
   RETURN NEW;

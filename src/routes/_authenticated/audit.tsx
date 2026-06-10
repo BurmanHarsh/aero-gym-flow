@@ -8,7 +8,7 @@ export const Route = createFileRoute("/_authenticated/audit")({
   beforeLoad: async () => {
     const { data } = await supabase.auth.getUser();
     if (!data.user) throw redirect({ to: "/auth" });
-    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id).eq("role", "admin");
+    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id).in("role", ["admin", "front_desk"]);
     if (!roles || roles.length === 0) throw redirect({ to: "/dashboard" });
   },
   component: AuditPage,

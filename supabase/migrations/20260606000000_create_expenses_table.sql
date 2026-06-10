@@ -26,11 +26,11 @@ INSERT INTO public.expenses (title, description, amount_cents, category, date, p
 -- Enable Row Level Security
 ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
 
--- Restrict all actions on expenses exclusively to admins
+-- Restrict all actions on expenses to all staff members
 CREATE POLICY "admin manage expenses" ON public.expenses
   FOR ALL TO authenticated
-  USING (public.has_role(auth.uid(), 'admin'))
-  WITH CHECK (public.has_role(auth.uid(), 'admin'));
+  USING (public.is_staff(auth.uid()))
+  WITH CHECK (public.is_staff(auth.uid()));
 
 -- Trigger for touch_updated_at
 CREATE TRIGGER touch_expenses_updated_at BEFORE UPDATE ON public.expenses

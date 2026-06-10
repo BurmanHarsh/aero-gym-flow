@@ -9,9 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Search, Plus, Phone, Mail, Calendar, User, Upload, Trash2, Edit2, ShieldAlert, HeartPulse, Activity } from "lucide-react";
+import { Search, Plus, Phone, Mail, Calendar, User, Upload, Trash2, Edit2, ShieldAlert, HeartPulse, Activity, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { sendWelcomeEmail } from "@/lib/aerogym/email.functions";
 import { useCurrentUser } from "@/hooks/use-current-user";
 
 export const Route = createFileRoute("/_authenticated/members")({
@@ -61,6 +60,7 @@ function MembersPage() {
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
 
   // Profile Drawer / Edit Dialog / Delete Dialog states
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
@@ -112,6 +112,8 @@ function MembersPage() {
     return !t || r.full_name.toLowerCase().includes(t) || r.phone.includes(t) || r.member_code.toLowerCase().includes(t);
   });
 
+  const isStaff = me.isAdmin || me.roles.includes("front_desk");
+
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
@@ -119,12 +121,14 @@ function MembersPage() {
           <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Members</h1>
           <p className="text-sm text-muted-foreground">{rows.length} total · {rows.filter((r) => r.status === "active").length} active</p>
         </div>
-        <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (next) load(); }}>
-          <DialogTrigger asChild>
-            <Button className="gradient-primary text-primary-foreground shadow-glow"><Plus className="mr-1 h-4 w-4" /> Add member</Button>
-          </DialogTrigger>
-          <AddMemberDialog plans={plans} planError={planError} onClose={() => { setOpen(false); load(); }} />
-        </Dialog>
+        {isStaff && (
+          <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (next) load(); }}>
+            <DialogTrigger asChild>
+              <Button className="gradient-primary text-primary-foreground shadow-glow"><Plus className="mr-1 h-4 w-4" /> Add member</Button>
+            </DialogTrigger>
+            <AddMemberDialog plans={plans} planError={planError} onClose={() => { setOpen(false); load(); }} />
+          </Dialog>
+        )}
       </header>
 
       <div className="relative">
@@ -148,8 +152,13 @@ function MembersPage() {
                 onClick={() => setSelectedMember(m)}
                 className="flex w-full items-center gap-4 px-5 py-4 text-left transition hover:bg-accent/30"
               >
-                {m.photo_url ? (
-                  <img src={m.photo_url} alt={m.full_name} className="h-10 w-10 shrink-0 rounded-xl object-cover" />
+                {m.photo_url && !brokenImages[m.id] ? (
+                  <img
+                    src={m.photo_url}
+                    alt={m.full_name}
+                    onError={() => setBrokenImages((prev) => ({ ...prev, [m.id]: true }))}
+                    className="h-10 w-10 shrink-0 rounded-xl object-cover"
+                  />
                 ) : (
                   <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl gradient-primary text-sm font-semibold text-primary-foreground">
                     {m.full_name.slice(0, 1).toUpperCase()}
@@ -160,9 +169,13 @@ function MembersPage() {
                     <span className="truncate font-medium">{m.full_name}</span>
                     <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">{m.member_code}</span>
                   </div>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                    <span className="inline-flex items-center gap-1"><Phone className="h-3 w-3" /> {m.phone}</span>
-                    {m.email && <span className="inline-flex items-center gap-1"><Mail className="h-3 w-3" /> {m.email}</span>}
+                   <div className="mt-0.5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                    {isStaff && (
+                      <>
+                        <span className="inline-flex items-center gap-1"><Phone className="h-3 w-3" /> {m.phone}</span>
+                        {m.email && <span className="inline-flex items-center gap-1"><Mail className="h-3 w-3" /> {m.email}</span>}
+                      </>
+                    )}
                     {m.expires_at && <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" /> exp {m.expires_at}</span>}
                   </div>
                 </div>
@@ -247,8 +260,8 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [plan_id, setPlanId] = useState<string>(plans[0]?.id ?? "");
+  const [paymentMethod, setPaymentMethod] = useState<string>("cash");
   const [busy, setBusy] = useState(false);
-  const sendWelcome = useServerFn(sendWelcomeEmail);
 
   useEffect(() => {
     if (!plan_id && plans[0]?.id) setPlanId(plans[0].id);
@@ -271,20 +284,37 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
     if (error) { toast.error(error.message); setBusy(false); return; }
     if (plan && data) {
       const total = plan.price_cents;
-      await supabase.from("invoices").insert({
-        member_id: data.id,
-        plan_id: plan.id,
-        amount_cents: total,
-        total_cents: total,
-        status: "pending",
-        due_date: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
-        created_by: userId,
-      });
-    }
-    if (email) {
-      sendWelcome({ data: { to: email, name: full_name, plan: plan?.name, expiresAt: expires_at ?? undefined } })
-        .then(() => toast.success("Welcome email sent"))
-        .catch((e) => toast.message("Member added", { description: `Email skipped: ${e.message}` }));
+      // Auto-generate PAID invoice since payment was received offline during sign-up
+      const { data: invData, error: invErr } = await supabase
+        .from("invoices")
+        .insert({
+          member_id: data.id,
+          plan_id: plan.id,
+          amount_cents: total,
+          total_cents: total,
+          status: "paid",
+          paid_at: new Date().toISOString(),
+          due_date: null,
+          created_by: userId,
+        })
+        .select()
+        .single();
+
+      if (invErr) {
+        toast.error("Member added, but failed to create invoice: " + invErr.message);
+      } else if (invData) {
+        // Auto-generate payment record to track financial inflow in billing tab
+        const { error: payErr } = await supabase.from("payments").insert({
+          invoice_id: invData.id,
+          amount_cents: total,
+          method: paymentMethod,
+          reference: "Paid on signup",
+          recorded_by: userId,
+        });
+        if (payErr) {
+          toast.error("Failed to log payment record: " + payErr.message);
+        }
+      }
     }
     toast.success("Member added");
     setBusy(false);
@@ -296,10 +326,8 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
       <DialogHeader><DialogTitle>Add member</DialogTitle></DialogHeader>
       <form onSubmit={submit} className="space-y-3">
         <div><Label>Full name</Label><Input value={full_name} onChange={(e) => setName(e.target.value)} required /></div>
-        <div className="grid grid-cols-2 gap-3">
-          <div><Label>Phone</Label><Input value={phone} onChange={(e) => setPhone(e.target.value)} required /></div>
-          <div><Label>Email (optional)</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
-        </div>
+        <div><Label>Phone</Label><Input value={phone} onChange={(e) => setPhone(e.target.value)} required /></div>
+        <div><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
         <div>
           <Label>Plan</Label>
           <Select value={plan_id} onValueChange={setPlanId}>
@@ -318,6 +346,17 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
           {!planError && plans.length === 0 && (
             <p className="mt-1 text-xs text-muted-foreground">Add a membership plan from the admin dashboard first.</p>
           )}
+        </div>
+        <div>
+          <Label>Payment Method</Label>
+          <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+            <SelectTrigger><SelectValue placeholder="Select payment method" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="cash">Cash</SelectItem>
+              <SelectItem value="upi">UPI</SelectItem>
+              <SelectItem value="card">Card</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <DialogFooter>
           <Button type="submit" disabled={busy || plans.length === 0} className="gradient-primary text-primary-foreground">
@@ -350,8 +389,102 @@ function MemberProfileDialog({
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  const isStaff = me.isStaff;
+
+  const [showRenew, setShowRenew] = useState(false);
+  const [renewPlanId, setRenewPlanId] = useState(plans[0]?.id ?? "");
+  const [renewMethod, setRenewMethod] = useState<"cash" | "upi" | "card" | "bank">("upi");
+  const [renewRef, setRenewRef] = useState("");
+  const [renewing, setRenewing] = useState(false);
+
+  useEffect(() => {
+    if (plans.length > 0 && !renewPlanId) {
+      setRenewPlanId(plans[0].id);
+    }
+  }, [plans, renewPlanId]);
+
+  async function handleRenewSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!renewPlanId) return;
+    setRenewing(true);
+
+    const plan = plans.find((p) => p.id === renewPlanId);
+    if (!plan) {
+      toast.error("Plan not found");
+      setRenewing(false);
+      return;
+    }
+
+    try {
+      let baseDate = new Date();
+      if (member.status === "active" && member.expires_at) {
+        const currentExpiry = new Date(member.expires_at);
+        if (currentExpiry.getTime() > Date.now()) {
+          baseDate = currentExpiry;
+        }
+      }
+      
+      const newExpiry = new Date(baseDate.getTime() + plan.duration_days * 86400000)
+        .toISOString()
+        .slice(0, 10);
+
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id ?? null;
+
+      const { error: memberErr } = await supabase
+        .from("members")
+        .update({
+          plan_id: plan.id,
+          expires_at: newExpiry,
+          status: "active",
+        })
+        .eq("id", member.id);
+
+      if (memberErr) throw memberErr;
+
+      const { data: invData, error: invErr } = await supabase
+        .from("invoices")
+        .insert({
+          member_id: member.id,
+          plan_id: plan.id,
+          amount_cents: plan.price_cents,
+          total_cents: plan.price_cents,
+          status: "paid",
+          paid_at: new Date().toISOString(),
+          due_date: null,
+          created_by: userId,
+        })
+        .select()
+        .single();
+
+      if (invErr) throw invErr;
+
+      const { error: payErr } = await supabase.from("payments").insert({
+        invoice_id: invData.id,
+        amount_cents: plan.price_cents,
+        method: renewMethod,
+        reference: renewRef.trim() || "Membership Renewal",
+        recorded_by: userId,
+      });
+
+      if (payErr) throw payErr;
+
+      toast.success("Membership successfully renewed!");
+      setShowRenew(false);
+      onClose();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to renew membership");
+    } finally {
+      setRenewing(false);
+    }
+  }
 
   const activePlan = plans.find((p) => p.id === member.plan_id)?.name ?? "No plan";
+
+  useEffect(() => {
+    setImageError(false);
+  }, [member.id]);
 
   useEffect(() => {
     setLoadingHistory(true);
@@ -387,13 +520,7 @@ function MemberProfileDialog({
 
       if (updateError) throw updateError;
 
-      // Bidirectional sync: Also update user profile avatar if this member has an email matching a user account
-      if (member.email) {
-        await supabase
-          .from("profiles")
-          .update({ avatar_url: publicUrl })
-          .eq("email", member.email);
-      }
+
 
       toast.success("Photo uploaded successfully");
       onClose(); // Reload data via closing and reloading
@@ -404,12 +531,64 @@ function MemberProfileDialog({
     }
   };
 
+  if (showRenew) {
+    return (
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Renew Membership: {member.full_name}</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleRenewSubmit} className="space-y-4 pt-2">
+          <div>
+            <Label htmlFor="renew-plan">Select Plan</Label>
+            <Select value={renewPlanId} onValueChange={setRenewPlanId}>
+              <SelectTrigger id="renew-plan"><SelectValue placeholder="Select a plan" /></SelectTrigger>
+              <SelectContent>
+                {plans.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.name} - {p.duration_days}d - Rs {(p.price_cents / 100).toLocaleString()}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="renew-method">Payment Method</Label>
+            <Select value={renewMethod} onValueChange={(v: any) => setRenewMethod(v)}>
+              <SelectTrigger id="renew-method"><SelectValue placeholder="Select payment method" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="upi">UPI</SelectItem>
+                <SelectItem value="cash">Cash</SelectItem>
+                <SelectItem value="card">Card</SelectItem>
+                <SelectItem value="bank">Bank Transfer</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="renew-ref">Reference (optional)</Label>
+            <Input id="renew-ref" value={renewRef} onChange={(e) => setRenewRef(e.target.value)} placeholder="Txn id, receipt no. etc." />
+          </div>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setShowRenew(false)} disabled={renewing}>
+              Back
+            </Button>
+            <Button type="submit" disabled={renewing || !renewPlanId} className="gradient-primary text-primary-foreground">
+              {renewing ? "Renewing..." : "Record Renewal & Pay"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    );
+  }
+
   return (
     <DialogContent className="max-w-2xl">
       <DialogHeader>
         <div className="flex items-center gap-4 border-b border-border pb-4">
-          {member.photo_url ? (
-            <img src={member.photo_url} alt={member.full_name} className="h-16 w-16 rounded-2xl object-cover" />
+          {member.photo_url && !imageError ? (
+            <img
+              src={member.photo_url}
+              alt={member.full_name}
+              onError={() => setImageError(true)}
+              className="h-16 w-16 rounded-2xl object-cover"
+            />
           ) : (
             <div className="grid h-16 w-16 place-items-center rounded-2xl gradient-primary text-xl font-bold text-primary-foreground">
               {member.full_name.slice(0, 1).toUpperCase()}
@@ -421,14 +600,16 @@ function MemberProfileDialog({
           </div>
           <div className="flex flex-col items-end gap-1.5">
             <StatusPill status={member.status} />
-            <Select value={member.status} onValueChange={onChangeStatus}>
-              <SelectTrigger className="h-7 w-24 text-[10px]"><SelectValue placeholder="Status" /></SelectTrigger>
-              <SelectContent>
-                {["active", "expired", "frozen", "cancelled"].map((s) => (
-                  <SelectItem key={s} value={s} className="capitalize text-xs">{s}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {isStaff && (
+              <Select value={member.status} onValueChange={onChangeStatus}>
+                <SelectTrigger className="h-7 w-24 text-[10px]"><SelectValue placeholder="Status" /></SelectTrigger>
+                <SelectContent>
+                  {["active", "expired", "frozen", "cancelled"].map((s) => (
+                    <SelectItem key={s} value={s} className="capitalize text-xs">{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
         </div>
       </DialogHeader>
@@ -442,14 +623,18 @@ function MemberProfileDialog({
 
         <TabsContent value="details" className="space-y-4 pt-3">
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <span className="text-xs uppercase text-muted-foreground">Phone</span>
-              <p className="text-sm font-medium">{member.phone}</p>
-            </div>
-            <div>
-              <span className="text-xs uppercase text-muted-foreground">Email</span>
-              <p className="text-sm font-medium">{member.email ?? "—"}</p>
-            </div>
+            {isStaff && (
+              <>
+                <div>
+                  <span className="text-xs uppercase text-muted-foreground">Phone</span>
+                  <p className="text-sm font-medium">{member.phone}</p>
+                </div>
+                <div>
+                  <span className="text-xs uppercase text-muted-foreground">Email</span>
+                  <p className="text-sm font-medium">{member.email ?? "—"}</p>
+                </div>
+              </>
+            )}
             <div>
               <span className="text-xs uppercase text-muted-foreground">Active Plan</span>
               <p className="text-sm font-medium">{activePlan}</p>
@@ -472,13 +657,18 @@ function MemberProfileDialog({
             <p className="text-sm font-medium">{member.address ?? "—"}</p>
           </div>
           <div className="rounded-xl border border-border/60 bg-muted/20 p-3.5 space-y-3">
-            <div className="flex items-center gap-2 text-warning">
-              <ShieldAlert className="h-4 w-4" />
-              <span className="text-xs font-semibold uppercase tracking-wider">Emergency Contact</span>
-            </div>
-            <p className="text-sm font-medium">{member.emergency_contact ?? "No contact details provided."}</p>
+            {isStaff && (
+              <>
+                <div className="flex items-center gap-2 text-warning">
+                  <ShieldAlert className="h-4 w-4" />
+                  <span className="text-xs font-semibold uppercase tracking-wider">Emergency Contact</span>
+                </div>
+                <p className="text-sm font-medium">{member.emergency_contact ?? "No contact details provided."}</p>
+                <div className="border-t border-border/30 pt-1.5" />
+              </>
+            )}
 
-            <div className="flex items-center gap-2 text-destructive pt-1.5 border-t border-border/30">
+            <div className="flex items-center gap-2 text-destructive">
               <HeartPulse className="h-4 w-4" />
               <span className="text-xs font-semibold uppercase tracking-wider">Medical Information</span>
             </div>
@@ -511,20 +701,31 @@ function MemberProfileDialog({
         </TabsContent>
 
         <TabsContent value="photo" className="space-y-4 pt-3">
-          <div>
-            <Label className="text-xs uppercase text-muted-foreground">Set Profile Photo</Label>
-            <div className="mt-1.5 flex items-center gap-3">
-              <Input type="file" accept="image/*" onChange={handlePhotoUpload} disabled={uploading} className="text-xs" />
-              {uploading && <span className="text-xs text-muted-foreground animate-pulse">Uploading...</span>}
+          {isStaff ? (
+            <div>
+              <Label className="text-xs uppercase text-muted-foreground">Set Profile Photo</Label>
+              <div className="mt-1.5 flex items-center gap-3">
+                <Input type="file" accept="image/*" onChange={handlePhotoUpload} disabled={uploading} className="text-xs" />
+                {uploading && <span className="text-xs text-muted-foreground animate-pulse">Uploading...</span>}
+              </div>
             </div>
-          </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">Only staff can modify member photos.</p>
+          )}
 
-          <div className="border-t border-border pt-4 flex gap-2">
-            <Button onClick={onEdit} variant="outline" className="flex-1 gap-1.5 text-xs">
-              <Edit2 className="h-3.5 w-3.5" /> Edit Profile Details
-            </Button>
-            {me.isAdmin && (
-              <Button onClick={onDelete} variant="destructive" className="flex-1 gap-1.5 text-xs">
+          <div className="border-t border-border pt-4 flex flex-wrap gap-2">
+            {isStaff && (
+              <Button onClick={() => setShowRenew(true)} className="flex-1 gap-1.5 text-xs gradient-primary text-primary-foreground shadow-glow min-w-[140px]">
+                <RefreshCw className="h-3.5 w-3.5" /> Renew Membership
+              </Button>
+            )}
+            {isStaff && (
+              <Button onClick={onEdit} variant="outline" className="flex-1 gap-1.5 text-xs min-w-[140px]">
+                <Edit2 className="h-3.5 w-3.5" /> Edit Profile
+              </Button>
+            )}
+            {isStaff && (
+              <Button onClick={onDelete} variant="destructive" className="flex-1 gap-1.5 text-xs min-w-[140px]">
                 <Trash2 className="h-3.5 w-3.5" /> Delete Member
               </Button>
             )}
@@ -537,6 +738,8 @@ function MemberProfileDialog({
 
 /* Edit Member Details Dialog Component */
 function EditMemberDialog({ member, plans, onClose }: { member: Member; plans: Plan[]; onClose: () => void }) {
+  const me = useCurrentUser();
+  const isStaff = me.isStaff;
   const [fullName, setFullName] = useState(member.full_name);
   const [phone, setPhone] = useState(member.phone);
   const [email, setEmail] = useState(member.email ?? "");
@@ -626,7 +829,7 @@ function EditMemberDialog({ member, plans, onClose }: { member: Member; plans: P
         <div className="grid grid-cols-2 gap-3">
           <div>
             <Label>Membership Status</Label>
-            <Select value={status} onValueChange={setStatus}>
+            <Select value={status} onValueChange={setStatus} disabled={!isStaff}>
               <SelectTrigger className="capitalize"><SelectValue placeholder="Status" /></SelectTrigger>
               <SelectContent>
                 {["active", "expired", "frozen", "cancelled"].map((s) => (

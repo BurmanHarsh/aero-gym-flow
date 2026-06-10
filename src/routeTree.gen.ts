@@ -12,7 +12,6 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AuthenticatedTrainersRouteImport } from './routes/_authenticated/trainers'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedMembersRouteImport } from './routes/_authenticated/members'
 import { Route as AuthenticatedLeadsRouteImport } from './routes/_authenticated/leads'
@@ -37,11 +36,6 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
-} as any)
-const AuthenticatedTrainersRoute = AuthenticatedTrainersRouteImport.update({
-  id: '/trainers',
-  path: '/trainers',
-  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   id: '/settings',
@@ -107,7 +101,6 @@ export interface FileRoutesByFullPath {
   '/leads': typeof AuthenticatedLeadsRoute
   '/members': typeof AuthenticatedMembersRoute
   '/settings': typeof AuthenticatedSettingsRoute
-  '/trainers': typeof AuthenticatedTrainersRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -122,7 +115,6 @@ export interface FileRoutesByTo {
   '/leads': typeof AuthenticatedLeadsRoute
   '/members': typeof AuthenticatedMembersRoute
   '/settings': typeof AuthenticatedSettingsRoute
-  '/trainers': typeof AuthenticatedTrainersRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -139,7 +131,6 @@ export interface FileRoutesById {
   '/_authenticated/leads': typeof AuthenticatedLeadsRoute
   '/_authenticated/members': typeof AuthenticatedMembersRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
-  '/_authenticated/trainers': typeof AuthenticatedTrainersRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -156,7 +147,6 @@ export interface FileRouteTypes {
     | '/leads'
     | '/members'
     | '/settings'
-    | '/trainers'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -171,7 +161,6 @@ export interface FileRouteTypes {
     | '/leads'
     | '/members'
     | '/settings'
-    | '/trainers'
   id:
     | '__root__'
     | '/'
@@ -187,7 +176,6 @@ export interface FileRouteTypes {
     | '/_authenticated/leads'
     | '/_authenticated/members'
     | '/_authenticated/settings'
-    | '/_authenticated/trainers'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -218,13 +206,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/trainers': {
-      id: '/_authenticated/trainers'
-      path: '/trainers'
-      fullPath: '/trainers'
-      preLoaderRoute: typeof AuthenticatedTrainersRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/settings': {
       id: '/_authenticated/settings'
@@ -310,7 +291,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedLeadsRoute: typeof AuthenticatedLeadsRoute
   AuthenticatedMembersRoute: typeof AuthenticatedMembersRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
-  AuthenticatedTrainersRoute: typeof AuthenticatedTrainersRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -324,7 +304,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedLeadsRoute: AuthenticatedLeadsRoute,
   AuthenticatedMembersRoute: AuthenticatedMembersRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
-  AuthenticatedTrainersRoute: AuthenticatedTrainersRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

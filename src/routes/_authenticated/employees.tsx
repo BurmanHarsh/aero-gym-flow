@@ -34,7 +34,7 @@ export const Route = createFileRoute("/_authenticated/employees")({
   beforeLoad: async () => {
     const { data } = await supabase.auth.getUser();
     if (!data.user) throw redirect({ to: "/auth" });
-    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id).eq("role", "admin");
+    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id).in("role", ["admin", "front_desk"]);
     if (!roles || roles.length === 0) throw redirect({ to: "/dashboard" });
   },
   component: EmployeesPage,
@@ -111,6 +111,7 @@ function getRoleColor(role: string) {
 
 function EmployeesPage() {
   const me = useCurrentUser();
+  const isStaff = me.isAdmin || me.roles.includes("front_desk");
   const [rows, setRows] = useState<Employee[]>([]);
   const [profiles, setProfiles] = useState<{ id: string; email: string; full_name: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -363,7 +364,7 @@ function EmployeesPage() {
             Manage gym staff, track payroll expenses, and assign active roles.
           </p>
         </div>
-        {me.isAdmin && (
+        {isStaff && (
           <Dialog open={addOpen} onOpenChange={(open) => { setAddOpen(open); if (open) resetForm(); }}>
             <DialogTrigger asChild>
               <Button className="gradient-primary text-primary-foreground gap-2">
@@ -611,7 +612,7 @@ function EmployeesPage() {
                       <div className="text-lg font-bold text-foreground">{formatRupees(emp.salary_cents)}</div>
                     </div>
 
-                    {me.isAdmin && (
+                    {isStaff && (
                       <div className="flex items-center gap-1">
                         <Button
                           variant="ghost"

@@ -56,8 +56,6 @@ BEGIN
   SELECT COUNT(*) INTO user_count FROM public.user_roles;
   IF user_count = 0 THEN
     INSERT INTO public.user_roles (user_id, role) VALUES (NEW.id, 'admin');
-  ELSE
-    INSERT INTO public.user_roles (user_id, role) VALUES (NEW.id, 'front_desk');
   END IF;
   RETURN NEW;
 END;
@@ -91,7 +89,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.membership_plans TO authenticated
 GRANT ALL ON public.membership_plans TO service_role;
 ALTER TABLE public.membership_plans ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "staff read plans" ON public.membership_plans FOR SELECT TO authenticated USING (public.is_staff(auth.uid()));
-CREATE POLICY "admin manage plans" ON public.membership_plans FOR ALL TO authenticated USING (public.has_role(auth.uid(),'admin')) WITH CHECK (public.has_role(auth.uid(),'admin'));
+CREATE POLICY "admin manage plans" ON public.membership_plans FOR ALL TO authenticated USING (public.is_staff(auth.uid())) WITH CHECK (public.is_staff(auth.uid()));
 CREATE TRIGGER membership_plans_touch BEFORE UPDATE ON public.membership_plans FOR EACH ROW EXECUTE FUNCTION public.touch_updated_at();
 
 -- ===== Members =====
@@ -124,7 +122,7 @@ ALTER TABLE public.members ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "staff read members" ON public.members FOR SELECT TO authenticated USING (public.is_staff(auth.uid()));
 CREATE POLICY "staff insert members" ON public.members FOR INSERT TO authenticated WITH CHECK (public.is_staff(auth.uid()));
 CREATE POLICY "staff update members" ON public.members FOR UPDATE TO authenticated USING (public.is_staff(auth.uid())) WITH CHECK (public.is_staff(auth.uid()));
-CREATE POLICY "admin delete members" ON public.members FOR DELETE TO authenticated USING (public.has_role(auth.uid(),'admin'));
+CREATE POLICY "admin delete members" ON public.members FOR DELETE TO authenticated USING (public.is_staff(auth.uid()));
 CREATE TRIGGER members_touch BEFORE UPDATE ON public.members FOR EACH ROW EXECUTE FUNCTION public.touch_updated_at();
 
 -- ===== Leads =====
@@ -171,7 +169,7 @@ ALTER TABLE public.attendance_records ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "staff read attendance" ON public.attendance_records FOR SELECT TO authenticated USING (public.is_staff(auth.uid()));
 CREATE POLICY "staff write attendance" ON public.attendance_records FOR INSERT TO authenticated WITH CHECK (public.is_staff(auth.uid()));
 CREATE POLICY "staff update attendance" ON public.attendance_records FOR UPDATE TO authenticated USING (public.is_staff(auth.uid())) WITH CHECK (public.is_staff(auth.uid()));
-CREATE POLICY "admin delete attendance" ON public.attendance_records FOR DELETE TO authenticated USING (public.has_role(auth.uid(),'admin'));
+CREATE POLICY "admin delete attendance" ON public.attendance_records FOR DELETE TO authenticated USING (public.is_staff(auth.uid()));
 
 -- ===== Invoices =====
 CREATE TABLE public.invoices (
@@ -199,7 +197,7 @@ ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "staff read invoices" ON public.invoices FOR SELECT TO authenticated USING (public.is_staff(auth.uid()));
 CREATE POLICY "staff write invoices" ON public.invoices FOR INSERT TO authenticated WITH CHECK (public.is_staff(auth.uid()));
 CREATE POLICY "staff update invoices" ON public.invoices FOR UPDATE TO authenticated USING (public.is_staff(auth.uid())) WITH CHECK (public.is_staff(auth.uid()));
-CREATE POLICY "admin delete invoices" ON public.invoices FOR DELETE TO authenticated USING (public.has_role(auth.uid(),'admin'));
+CREATE POLICY "admin delete invoices" ON public.invoices FOR DELETE TO authenticated USING (public.is_staff(auth.uid()));
 CREATE TRIGGER invoices_touch BEFORE UPDATE ON public.invoices FOR EACH ROW EXECUTE FUNCTION public.touch_updated_at();
 
 -- ===== Payments =====
@@ -220,8 +218,8 @@ GRANT ALL ON public.payments TO service_role;
 ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "staff read payments" ON public.payments FOR SELECT TO authenticated USING (public.is_staff(auth.uid()));
 CREATE POLICY "staff write payments" ON public.payments FOR INSERT TO authenticated WITH CHECK (public.is_staff(auth.uid()));
-CREATE POLICY "admin update payments" ON public.payments FOR UPDATE TO authenticated USING (public.has_role(auth.uid(),'admin')) WITH CHECK (public.has_role(auth.uid(),'admin'));
-CREATE POLICY "admin delete payments" ON public.payments FOR DELETE TO authenticated USING (public.has_role(auth.uid(),'admin'));
+CREATE POLICY "admin update payments" ON public.payments FOR UPDATE TO authenticated USING (public.is_staff(auth.uid())) WITH CHECK (public.is_staff(auth.uid()));
+CREATE POLICY "admin delete payments" ON public.payments FOR DELETE TO authenticated USING (public.is_staff(auth.uid()));
 
 -- ===== Audit Logs =====
 CREATE TABLE public.audit_logs (
@@ -239,7 +237,7 @@ CREATE INDEX audit_created_idx ON public.audit_logs(created_at DESC);
 GRANT SELECT, INSERT ON public.audit_logs TO authenticated;
 GRANT ALL ON public.audit_logs TO service_role;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "admin read audit" ON public.audit_logs FOR SELECT TO authenticated USING (public.has_role(auth.uid(),'admin'));
+CREATE POLICY "admin read audit" ON public.audit_logs FOR SELECT TO authenticated USING (public.is_staff(auth.uid()));
 CREATE POLICY "staff insert audit" ON public.audit_logs FOR INSERT TO authenticated WITH CHECK (public.is_staff(auth.uid()));
 
 -- ===== Notifications =====
@@ -271,8 +269,8 @@ CREATE TABLE public.system_settings (
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.system_settings TO authenticated;
 GRANT ALL ON public.system_settings TO service_role;
 ALTER TABLE public.system_settings ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "admin read settings" ON public.system_settings FOR SELECT TO authenticated USING (public.has_role(auth.uid(),'admin'));
-CREATE POLICY "admin write settings" ON public.system_settings FOR ALL TO authenticated USING (public.has_role(auth.uid(),'admin')) WITH CHECK (public.has_role(auth.uid(),'admin'));
+CREATE POLICY "admin read settings" ON public.system_settings FOR SELECT TO authenticated USING (public.is_staff(auth.uid()));
+CREATE POLICY "admin write settings" ON public.system_settings FOR ALL TO authenticated USING (public.is_staff(auth.uid())) WITH CHECK (public.is_staff(auth.uid()));
 
 -- Seed default plans
 INSERT INTO public.membership_plans (name, description, duration_days, price_cents) VALUES

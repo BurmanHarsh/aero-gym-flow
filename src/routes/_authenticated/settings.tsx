@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Sun, Moon, Monitor, LogOut, ShieldCheck, Bell, UserCircle2, Palette, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "Settings · Tank by Tapan" }] }),
@@ -108,6 +109,7 @@ function AccountTab({ me }: { me: ReturnType<typeof useCurrentUser> }) {
   const [pw, setPw] = useState("");
   const [uploading, setUploading] = useState(false);
   const [avatar, setAvatar] = useState(me.avatarUrl);
+  const [imageError, setImageError] = useState(false);
 
   useEffect(() => { setName(me.fullName); }, [me.fullName]);
   useEffect(() => { setAvatar(me.avatarUrl); }, [me.avatarUrl]);
@@ -146,6 +148,7 @@ function AccountTab({ me }: { me: ReturnType<typeof useCurrentUser> }) {
       }
 
       setAvatar(publicUrl);
+      setImageError(false);
       toast.success("Profile photo updated successfully");
       // Force reload auth state to update navbar
       if (typeof window !== "undefined") {
@@ -187,9 +190,14 @@ function AccountTab({ me }: { me: ReturnType<typeof useCurrentUser> }) {
         </p>
       </div>
 
-      {avatar && (
+      {avatar && !imageError ? (
         <div className="flex items-center gap-3 border-b border-border/40 pb-4">
-          <img src={avatar} alt={name} className="h-14 w-14 rounded-xl object-cover border border-border" />
+          <img
+            src={avatar}
+            alt={name}
+            onError={() => setImageError(true)}
+            className="h-14 w-14 rounded-xl object-cover border border-border"
+          />
           <button
             type="button"
             onClick={async () => {
@@ -211,7 +219,34 @@ function AccountTab({ me }: { me: ReturnType<typeof useCurrentUser> }) {
             Remove photo
           </button>
         </div>
-      )}
+      ) : avatar ? (
+        <div className="flex items-center gap-3 border-b border-border/40 pb-4">
+          <div className="grid h-14 w-14 place-items-center rounded-xl gradient-primary text-lg font-semibold text-primary-foreground">
+            {(name || me.email || "U").slice(0, 1).toUpperCase()}
+          </div>
+          <button
+            type="button"
+            onClick={async () => {
+              if (!me.user) return;
+              const { error } = await supabase.from("profiles").update({ avatar_url: null }).eq("id", me.user.id);
+              if (error) return toast.error(error.message);
+              
+              // Bidirectional sync: Also remove from members table if a member with the same email exists
+              if (me.email) {
+                await supabase.from("members").update({ photo_url: null }).eq("email", me.email);
+              }
+
+              setAvatar("");
+              setImageError(false);
+              toast.success("Profile photo removed");
+              if (typeof window !== "undefined") window.location.reload();
+            }}
+            className="text-xs text-destructive hover:underline"
+          >
+            Remove broken photo
+          </button>
+        </div>
+      ) : null}
 
       <form onSubmit={saveProfile} className="space-y-3">
         <div><Label>Full name</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
@@ -230,7 +265,7 @@ function AccountTab({ me }: { me: ReturnType<typeof useCurrentUser> }) {
 }
 
 function NotificationsTab() {
-  const [s, setS] = useState({ membershipExpiry: true, paymentReminders: true, leadFollowups: true, email: true });
+  const [s, setS] = useState({ membershipExpiry: true, paymentReminders: true });
   return (
     <div className="space-y-6">
       <div><h2 className="text-base font-semibold">Notification preferences</h2><p className="mt-1 text-sm text-muted-foreground">Control which alerts you receive and how.</p></div>
@@ -238,12 +273,10 @@ function NotificationsTab() {
         {([
           ["membershipExpiry", "Membership expiry reminders", "Remind 7 days before a member's plan expires."],
           ["paymentReminders", "Payment reminders", "Nudge members with pending invoices."],
-          ["leadFollowups", "Lead follow-ups", "Get reminded to follow up on warm leads."],
-          ["email", "Email notifications", "Send a daily summary to your inbox."],
         ] as const).map(([k, t, d]) => (
           <div key={k} className="flex items-start justify-between gap-4 py-4">
             <div><div className="text-sm font-medium">{t}</div><div className="text-xs text-muted-foreground">{d}</div></div>
-            <Switch checked={s[k]} onCheckedChange={(v) => setS({ ...s, [k]: v })} />
+            <Switch checked={s[k as keyof typeof s]} onCheckedChange={(v) => setS({ ...s, [k]: v })} />
           </div>
         ))}
       </div>
@@ -252,6 +285,29 @@ function NotificationsTab() {
 }
 
 function SecurityTab({ onLogout }: { onLogout: () => void }) {
+  const me = useCurrentUser();
+  const [confirmingReset, setConfirmingReset] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+  const [resetting, setResetting] = useState(false);
+
+  async function handlePurgeData() {
+    if (confirmText !== "RESET DATABASE") return;
+    try {
+      setResetting(true);
+      const { error } = await (supabase as any).rpc("purge_all_data");
+      if (error) throw error;
+      toast.success("Database has been reset successfully.");
+      setConfirmingReset(false);
+      setConfirmText("");
+      // Log out to clear session and require fresh sign-in / admin registration
+      onLogout();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to reset database");
+    } finally {
+      setResetting(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div><h2 className="text-base font-semibold">Sessions & security</h2><p className="mt-1 text-sm text-muted-foreground">Manage your active session and sign out.</p></div>
@@ -263,6 +319,70 @@ function SecurityTab({ onLogout }: { onLogout: () => void }) {
       <Button onClick={onLogout} variant="destructive" className="w-full sm:w-auto">
         <LogOut className="mr-2 h-4 w-4" /> Sign out
       </Button>
+
+      {me.isAdmin && (
+        <>
+          <div className="border-t border-destructive/20 pt-6">
+            <h2 className="text-base font-semibold text-destructive">Danger Zone</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Permanently delete all gym records (members, invoices, payments, attendance, expenses, employees, notifications, audit logs) and all registered user accounts except your current account.
+            </p>
+            <div className="mt-4">
+              <Button variant="destructive" onClick={() => setConfirmingReset(true)} className="gradient-destructive">
+                Reset Gym Database
+              </Button>
+            </div>
+          </div>
+
+          <Dialog open={confirmingReset} onOpenChange={setConfirmingReset}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Reset Gym Database?</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  This will permanently delete all records in the database:
+                </p>
+                <ul className="list-disc list-inside text-xs text-muted-foreground space-y-1">
+                  <li>All registered user accounts (except your current account)</li>
+                  <li>All members and their attendance logs</li>
+                  <li>All invoices and recorded payments</li>
+                  <li>All expenses and employee records</li>
+                  <li>All system notifications and audit logs</li>
+                </ul>
+                <p className="text-sm font-semibold text-destructive mt-3">
+                  WARNING: This action is permanent and cannot be undone.
+                </p>
+                <div className="mt-2">
+                  <Label htmlFor="confirm-reset-text" className="text-xs">
+                    Type <span className="font-mono bg-muted px-1.5 py-0.5 rounded text-foreground">RESET DATABASE</span> to confirm
+                  </Label>
+                  <Input
+                    id="confirm-reset-text"
+                    value={confirmText}
+                    onChange={(e) => setConfirmText(e.target.value)}
+                    placeholder="RESET DATABASE"
+                    className="mt-1.5"
+                  />
+                </div>
+              </div>
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={() => { setConfirmingReset(false); setConfirmText(""); }} disabled={resetting}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handlePurgeData}
+                  disabled={resetting || confirmText !== "RESET DATABASE"}
+                  className="gradient-destructive"
+                >
+                  {resetting ? "Resetting Database..." : "Permanently Reset Database"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </>
+      )}
     </div>
   );
 }

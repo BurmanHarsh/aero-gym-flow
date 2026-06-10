@@ -118,7 +118,7 @@ function AttendancePage() {
   }, [q, isStaff]);
 
   async function checkIn(memberId: string, method: "qr" | "biometric" | "manual" = "manual") {
-    if (!me.isAdmin) {
+    if (!isStaff) {
       if (!myMember || memberId !== myMember.id) {
         toast.error("You can't check in other's account");
         return;
@@ -154,9 +154,9 @@ function AttendancePage() {
   }
 
   async function checkOut(id: string, memberId?: string) {
-    if (!me.isAdmin) {
+    if (!isStaff) {
       if (!myMember || memberId !== myMember.id) {
-        toast.error("You can't check out others unless you are an admin");
+        toast.error("You can't check out others");
         return;
       }
     }
@@ -257,7 +257,7 @@ function AttendancePage() {
                   <div className="grid h-9 w-9 place-items-center rounded-lg gradient-primary text-xs font-semibold text-primary-foreground">{m.full_name.slice(0, 1)}</div>
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium">{m.full_name}</div>
-                    <div className="text-[11px] text-muted-foreground">{m.member_code} · {m.phone}</div>
+                    <div className="text-[11px] text-muted-foreground">{m.member_code}{isStaff ? ` · ${m.phone}` : ""}</div>
                   </div>
                   <Button size="sm" onClick={() => checkIn(m.id, "manual")} className="gradient-primary text-primary-foreground">
                     Check-in <ArrowRight className="ml-1 h-3 w-3" />

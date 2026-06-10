@@ -26,6 +26,7 @@ import {
   Banknote,
   Smartphone,
   ShieldAlert,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -34,7 +35,7 @@ export const Route = createFileRoute("/_authenticated/expenses")({
   beforeLoad: async () => {
     const { data } = await supabase.auth.getUser();
     if (!data.user) throw redirect({ to: "/auth" });
-    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id).eq("role", "admin");
+    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id).in("role", ["admin", "front_desk"]);
     if (!roles || roles.length === 0) throw redirect({ to: "/dashboard" });
   },
   component: ExpensesPage,
@@ -144,6 +145,40 @@ function ExpensesPage() {
     utilities: rows.filter((r) => r.category === "Utilities").reduce((s, r) => s + r.amount_cents, 0),
   };
 
+  function handleExportCSV() {
+    if (filtered.length === 0) {
+      toast.error("No expenses to export");
+      return;
+    }
+    const dataToExport = filtered.map(r => ({
+      "Title": r.title,
+      "Category": r.category,
+      "Amount (INR)": r.amount_cents / 100,
+      "Date": new Date(r.date).toLocaleDateString(),
+      "Payment Method": r.payment_method,
+      "Description": r.description ?? ""
+    }));
+
+    const headers = Object.keys(dataToExport[0]).join(",");
+    const csvRows = dataToExport.map(row => 
+      Object.values(row).map(val => {
+        const str = String(val).replace(/"/g, '""');
+        return str.includes(",") || str.includes("\n") ? `"${str}"` : str;
+      }).join(",")
+    );
+    const csvContent = "\uFEFF" + [headers, ...csvRows].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `expenses_export_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success("CSV export downloaded");
+  }
+
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
@@ -151,14 +186,19 @@ function ExpensesPage() {
           <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Expense Management</h1>
           <p className="text-sm text-muted-foreground">Track operating expenses, rent, payouts, and utility bills.</p>
         </div>
-        <Dialog open={addOpen} onOpenChange={setAddOpen}>
-          <DialogTrigger asChild>
-            <Button className="gradient-primary text-primary-foreground shadow-glow">
-              <Plus className="mr-1 h-4 w-4" /> Add Expense
-            </Button>
-          </DialogTrigger>
-          <AddExpenseDialog onClose={() => { setAddOpen(false); load(); }} />
-        </Dialog>
+        <div className="flex items-center gap-2">
+          <Button onClick={handleExportCSV} variant="outline">
+            <Download className="mr-1.5 h-4 w-4" /> Export CSV
+          </Button>
+          <Dialog open={addOpen} onOpenChange={setAddOpen}>
+            <DialogTrigger asChild>
+              <Button className="gradient-primary text-primary-foreground shadow-glow">
+                <Plus className="mr-1 h-4 w-4" /> Add Expense
+              </Button>
+            </DialogTrigger>
+            <AddExpenseDialog onClose={() => { setAddOpen(false); load(); }} />
+          </Dialog>
+        </div>
       </header>
 
       {/* KPI Cards */}
