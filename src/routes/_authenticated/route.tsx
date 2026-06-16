@@ -5,14 +5,14 @@ import { AppShell } from "@/components/app-shell";
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   beforeLoad: async ({ location }) => {
-    const { data, error } = await supabase.auth.getUser();
-    if (error || !data.user) throw redirect({ to: "/auth" });
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw redirect({ to: "/auth" });
 
     // Fetch user roles
     const { data: roles } = await supabase
       .from("user_roles")
       .select("role")
-      .eq("user_id", data.user.id);
+      .eq("user_id", session.user.id);
 
     const userRoles = ((roles ?? []) as Array<{ role: string }>).map((x) => x.role);
     const isStaff = userRoles.includes("admin") || userRoles.includes("front_desk");
@@ -24,7 +24,7 @@ export const Route = createFileRoute("/_authenticated")({
       throw redirect({ to: "/dashboard" });
     }
 
-    return { user: data.user };
+    return { user: session.user };
   },
   component: () => (
     <AppShell>

@@ -226,6 +226,7 @@ export type Database = {
           gender: string | null
           id: string
           joined_at: string
+          medical_info: string | null
           member_code: string
           notes: string | null
           phone: string
@@ -246,6 +247,7 @@ export type Database = {
           gender?: string | null
           id?: string
           joined_at?: string
+          medical_info?: string | null
           member_code?: string
           notes?: string | null
           phone: string
@@ -266,6 +268,7 @@ export type Database = {
           gender?: string | null
           id?: string
           joined_at?: string
+          medical_info?: string | null
           member_code?: string
           notes?: string | null
           phone?: string
@@ -463,6 +466,137 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      employees: {
+        Row: {
+          id: string
+          name: string
+          role: string
+          email: string | null
+          phone: string | null
+          salary_cents: number
+          status: string
+          hire_date: string
+          profile_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          role: string
+          email?: string | null
+          phone?: string | null
+          salary_cents?: number
+          status?: string
+          hire_date?: string
+          profile_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          role?: string
+          email?: string | null
+          phone?: string | null
+          salary_cents?: number
+          status?: string
+          hire_date?: string
+          profile_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employees_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      expenses: {
+        Row: {
+          id: string
+          title: string
+          description: string | null
+          amount_cents: number
+          category: string
+          date: string
+          payment_method: string
+          recorded_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          title: string
+          description?: string | null
+          amount_cents: number
+          category: string
+          date?: string
+          payment_method?: string
+          recorded_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          title?: string
+          description?: string | null
+          amount_cents?: number
+          category?: string
+          date?: string
+          payment_method?: string
+          recorded_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      inventory_items: {
+        Row: {
+          id: string
+          name: string
+          description: string | null
+          category: string
+          quantity: number
+          min_stock_level: number
+          purchase_price_cents: number
+          sale_price_cents: number | null
+          supplier: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          description?: string | null
+          category: string
+          quantity?: number
+          min_stock_level?: number
+          purchase_price_cents?: number
+          sale_price_cents?: number | null
+          supplier?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          description?: string | null
+          category?: string
+          quantity?: number
+          min_stock_level?: number
+          purchase_price_cents?: number
+          sale_price_cents?: number | null
+          supplier?: string | null
+          created_at?: string
+          updated_at?: string
         }
         Relationships: []
       }
