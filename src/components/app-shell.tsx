@@ -40,6 +40,7 @@ const PRIMARY: NavItem[] = [
   { to: "/members", label: "Members", icon: Users },
   { to: "/attendance", label: "Attendance", icon: QrCode },
   { to: "/inventory", label: "Inventory", icon: Package },
+  { to: "/plans", label: "Plans", icon: Dumbbell },
   { to: "/billing", label: "Billing", icon: Receipt },
 ];
 const ADMIN: NavItem[] = [
@@ -65,8 +66,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const visible = (item: NavItem) => {
     if (!isStaff) {
-      // Regular members can only view Dashboard, Attendance, Members, Inventory, Settings
-      const allowed = ["/dashboard", "/attendance", "/members", "/inventory", "/settings"];
+      // Regular members can only view Dashboard, Attendance, Members, Inventory, Settings, Plans
+      const allowed = ["/dashboard", "/attendance", "/members", "/inventory", "/settings", "/plans"];
       return allowed.includes(item.to);
     }
     return true;

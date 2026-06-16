@@ -315,13 +315,17 @@ function PlanManager({ plans, loading, error }: { plans: Plan[]; loading: boolea
           </div>
           <p className="mt-1 text-xs text-muted-foreground">New plans appear when adding members.</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm" className="shrink-0 gap-1">
-              <Plus className="h-4 w-4" />
-              Add
-            </Button>
-          </DialogTrigger>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <Button asChild variant="outline" size="sm" className="h-8 px-2 text-xs">
+            <Link to="/plans">Manage</Link>
+          </Button>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="h-8 px-2 text-xs gap-1">
+                <Plus className="h-3.5 w-3.5" />
+                Add
+              </Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add membership plan</DialogTitle>
@@ -353,6 +357,7 @@ function PlanManager({ plans, loading, error }: { plans: Plan[]; loading: boolea
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="mt-3 space-y-2">
@@ -604,6 +609,12 @@ function MemberDashboard({ user }: { user: ReturnType<typeof useCurrentUser> }) 
               <Link to="/inventory">
                 <Archive className="h-3.5 w-3.5 text-info" />
                 <span>Supplements Catalog</span>
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="sm" className="w-full justify-start gap-2 h-9 text-xs">
+              <Link to="/plans">
+                <Dumbbell className="h-3.5 w-3.5 text-secondary" />
+                <span>Membership Plans</span>
               </Link>
             </Button>
           </div>

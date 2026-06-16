@@ -21,14 +21,15 @@ function AuthPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user) navigate({ to: "/dashboard", replace: true });
-    });
+    let redirected = false;
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      if (session) navigate({ to: "/dashboard", replace: true });
+      if (session && !redirected) {
+        redirected = true;
+        window.location.href = "/dashboard";
+      }
     });
     return () => sub.subscription.unsubscribe();
-  }, [navigate]);
+  }, []);
 
   async function handleEmail(e: React.FormEvent) {
     e.preventDefault();
@@ -38,7 +39,7 @@ function AuthPage() {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: window.location.origin, data: { full_name: name } },
+          options: { emailRedirectTo: window.location.origin + "/auth", data: { full_name: name } },
         });
         if (error) throw error;
         toast.success("Account created. You're in.");
@@ -57,7 +58,7 @@ function AuthPage() {
     setLoading(true);
     const result = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: window.location.origin },
+      options: { redirectTo: window.location.origin + "/auth" },
     });
     if (result.error) {
       toast.error(result.error.message ?? "Google sign-in failed");

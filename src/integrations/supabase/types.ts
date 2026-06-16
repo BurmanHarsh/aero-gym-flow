@@ -292,6 +292,7 @@ export type Database = {
           duration_days: number
           id: string
           name: string
+          photo_url: string | null
           price_cents: number
           updated_at: string
         }
@@ -302,6 +303,7 @@ export type Database = {
           duration_days: number
           id?: string
           name: string
+          photo_url?: string | null
           price_cents: number
           updated_at?: string
         }
@@ -312,6 +314,7 @@ export type Database = {
           duration_days?: number
           id?: string
           name?: string
+          photo_url?: string | null
           price_cents?: number
           updated_at?: string
         }
