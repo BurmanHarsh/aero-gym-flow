@@ -95,9 +95,9 @@ function Landing() {
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-background">
       {/* Full Page Gym Image Background */}
-      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden select-none">
+      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden select-none">
         <div 
-          className="h-full w-full bg-cover bg-center opacity-[0.45] md:bg-fixed" 
+          className="h-full w-full bg-cover bg-center opacity-[0.45]" 
           style={{ backgroundImage: `url('/gym-bg.jpg')` }}
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/55 to-black/85" />
