@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,9 +12,16 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Search, Plus, Phone, Mail, Calendar, User, Upload, Trash2, Edit2, ShieldAlert, HeartPulse, Activity, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { sendWelcomeEmail, sendReceiptEmail } from "@/lib/aerogym/email.functions";
 
 export const Route = createFileRoute("/_authenticated/members")({
   head: () => ({ meta: [{ title: "Members - Tank by Tapan" }] }),
+  beforeLoad: async () => {
+    const { data } = await supabase.auth.getUser();
+    if (!data.user) throw redirect({ to: "/auth" });
+    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id).in("role", ["admin", "front_desk"]);
+    if (!roles || roles.length === 0) throw redirect({ to: "/dashboard" });
+  },
   component: MembersPage,
 });
 
@@ -147,40 +154,59 @@ function MembersPage() {
         ) : (
           <div className="divide-y divide-border">
             {filtered.map((m) => (
-              <button
+              <div
                 key={m.id}
-                onClick={() => setSelectedMember(m)}
-                className="flex w-full items-center gap-4 px-5 py-4 text-left transition hover:bg-accent/30"
+                className="group flex w-full items-center justify-between gap-4 px-5 py-4 transition hover:bg-accent/30"
               >
-                {m.photo_url && !brokenImages[m.id] ? (
-                  <img
-                    src={m.photo_url}
-                    alt={m.full_name}
-                    onError={() => setBrokenImages((prev) => ({ ...prev, [m.id]: true }))}
-                    className="h-10 w-10 shrink-0 rounded-xl object-cover"
-                  />
-                ) : (
-                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl gradient-primary text-sm font-semibold text-primary-foreground">
-                    {m.full_name.slice(0, 1).toUpperCase()}
-                  </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="truncate font-medium">{m.full_name}</span>
-                    <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">{m.member_code}</span>
-                  </div>
-                   <div className="mt-0.5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                    {isStaff && (
-                      <>
-                        <span className="inline-flex items-center gap-1"><Phone className="h-3 w-3" /> {m.phone}</span>
-                        {m.email && <span className="inline-flex items-center gap-1"><Mail className="h-3 w-3" /> {m.email}</span>}
-                      </>
-                    )}
-                    {m.expires_at && <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" /> exp {m.expires_at}</span>}
+                <div
+                  onClick={() => setSelectedMember(m)}
+                  className="flex flex-1 items-center gap-4 min-w-0 cursor-pointer"
+                >
+                  {m.photo_url && !brokenImages[m.id] ? (
+                    <img
+                      src={m.photo_url}
+                      alt={m.full_name}
+                      onError={() => setBrokenImages((prev) => ({ ...prev, [m.id]: true }))}
+                      className="h-10 w-10 shrink-0 rounded-xl object-cover"
+                    />
+                  ) : (
+                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl gradient-primary text-sm font-semibold text-primary-foreground">
+                      {m.full_name.slice(0, 1).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate font-medium">{m.full_name}</span>
+                      <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">{m.member_code}</span>
+                    </div>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                      {isStaff && (
+                        <>
+                          <span className="inline-flex items-center gap-1"><Phone className="h-3 w-3" /> {m.phone}</span>
+                          {m.email && <span className="inline-flex items-center gap-1"><Mail className="h-3 w-3" /> {m.email}</span>}
+                        </>
+                      )}
+                      {m.expires_at && <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" /> exp {m.expires_at}</span>}
+                    </div>
                   </div>
                 </div>
-                <StatusPill status={m.status} />
-              </button>
+                <div className="flex items-center gap-3 shrink-0">
+                  <StatusPill status={m.status} />
+                  {isStaff && (
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeletingMember(m);
+                      }}
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
             ))}
           </div>
         )}
@@ -196,7 +222,7 @@ function MembersPage() {
             onClose={() => { setSelectedMember(null); load(); }}
             onEdit={() => setEditingMember(selectedMember)}
             onDelete={() => setDeletingMember(selectedMember)}
-            onChangeStatus={async (nextStatus) => {
+            onChangeStatus={async (nextStatus: string) => {
               if (!selectedMember) return;
               const { error } = await supabase.from("members").update({ status: nextStatus }).eq("id", selectedMember.id);
               if (error) { toast.error(error.message); return; }
@@ -256,6 +282,8 @@ function StatusPill({ status }: { status: string }) {
 
 /* Add Member Dialog component */
 function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planError: string; onClose: () => void }) {
+  const welcomeEmail = useServerFn(sendWelcomeEmail);
+  const receiptEmail = useServerFn(sendReceiptEmail);
   const [full_name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -282,6 +310,21 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
       .select()
       .single();
     if (error) { toast.error(error.message); setBusy(false); return; }
+    
+    // Trigger welcome email asynchronously
+    if (email && data) {
+      welcomeEmail({
+        data: {
+          to: email,
+          name: full_name,
+          plan: plan?.name,
+          expiresAt: expires_at ?? undefined
+        }
+      }).catch((err) => {
+        console.error("Failed to send welcome email:", err);
+      });
+    }
+
     if (plan && data) {
       const total = plan.price_cents;
       // Auto-generate PAID invoice since payment was received offline during sign-up
@@ -313,6 +356,19 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
         });
         if (payErr) {
           toast.error("Failed to log payment record: " + payErr.message);
+        } else if (email) {
+          // Trigger receipt email
+          receiptEmail({
+            data: {
+              to: email,
+              name: full_name,
+              invoiceNumber: invData.invoice_number,
+              amount: new Intl.NumberFormat(undefined, { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(total / 100),
+              method: paymentMethod
+            }
+          }).catch((err) => {
+            console.error("Failed to send signup receipt email:", err);
+          });
         }
       }
     }
@@ -386,6 +442,8 @@ function MemberProfileDialog({
   onDelete: () => void;
   onChangeStatus: (s: string) => Promise<void>;
 }) {
+  const welcomeEmail = useServerFn(sendWelcomeEmail);
+  const receiptEmail = useServerFn(sendReceiptEmail);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -469,6 +527,21 @@ function MemberProfileDialog({
       });
 
       if (payErr) throw payErr;
+
+      // Trigger receipt email if member has an email address
+      if (member.email) {
+        receiptEmail({
+          data: {
+            to: member.email,
+            name: member.full_name,
+            invoiceNumber: invData.invoice_number,
+            amount: new Intl.NumberFormat(undefined, { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(plan.price_cents / 100),
+            method: renewMethod
+          }
+        }).catch((err) => {
+          console.error("Failed to send renewal receipt email:", err);
+        });
+      }
 
       toast.success("Membership successfully renewed!");
       setShowRenew(false);
@@ -722,6 +795,30 @@ function MemberProfileDialog({
             {isStaff && (
               <Button onClick={onEdit} variant="outline" className="flex-1 gap-1.5 text-xs min-w-[140px]">
                 <Edit2 className="h-3.5 w-3.5" /> Edit Profile
+              </Button>
+            )}
+            {isStaff && member.email && (
+              <Button 
+                onClick={async () => {
+                  try {
+                    toast.info("Sending welcome email...");
+                    await welcomeEmail({
+                      data: {
+                        to: member.email!,
+                        name: member.full_name,
+                        plan: activePlan,
+                        expiresAt: member.expires_at ?? undefined
+                      }
+                    });
+                    toast.success("Welcome email sent successfully!");
+                  } catch (err: any) {
+                    toast.error("Failed to send welcome email: " + err.message);
+                  }
+                }} 
+                variant="outline" 
+                className="flex-1 gap-1.5 text-xs min-w-[140px]"
+              >
+                <Mail className="h-3.5 w-3.5" /> Send Welcome Email
               </Button>
             )}
             {isStaff && (

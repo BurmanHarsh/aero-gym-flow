@@ -21,6 +21,7 @@ import {
   Megaphone,
   X,
   Plus,
+  Award,
 } from "lucide-react";
 import { useState, type ReactNode, useEffect, useRef } from "react";
 import { useCurrentUser } from "@/hooks/use-current-user";
@@ -40,7 +41,7 @@ const PRIMARY: NavItem[] = [
   { to: "/members", label: "Members", icon: Users },
   { to: "/attendance", label: "Attendance", icon: QrCode },
   { to: "/inventory", label: "Inventory", icon: Package },
-  { to: "/plans", label: "Plans", icon: Dumbbell },
+  { to: "/plans", label: "Plans", icon: Award },
   { to: "/billing", label: "Billing", icon: Receipt },
 ];
 const ADMIN: NavItem[] = [
@@ -65,15 +66,19 @@ export function AppShell({ children }: { children: ReactNode }) {
   const isStaff = me.isAdmin || me.roles.includes("front_desk");
 
   const visible = (item: NavItem) => {
-    if (!isStaff) {
-      // Regular members can only view Dashboard, Attendance, Members, Inventory, Settings, Plans
-      const allowed = ["/dashboard", "/attendance", "/members", "/inventory", "/settings", "/plans"];
+    if (me.isAdmin) return true;
+    if (me.roles.includes("front_desk")) {
+      // Front desk can only view Dashboard, Members, Inventory, Settings
+      const allowed = ["/dashboard", "/members", "/inventory", "/settings"];
       return allowed.includes(item.to);
     }
-    return true;
+    // Regular members can only view Dashboard, Attendance, Inventory, Settings, Plans
+    const allowed = ["/dashboard", "/attendance", "/inventory", "/settings", "/plans"];
+    return allowed.includes(item.to);
   };
 
   const roleLabel = me.isAdmin ? "Admin" : isStaff ? "Front desk" : "Member";
+  const filteredMobileTabs = MOBILE_TABS.filter(visible);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -84,14 +89,18 @@ export function AppShell({ children }: { children: ReactNode }) {
           collapsed ? "w-18" : "w-64"
         )}
       >
-        <Link to="/dashboard" className="flex h-16 items-center gap-2 px-4">
-          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl gradient-primary shadow-glow">
-            <Dumbbell className="h-5 w-5 text-primary-foreground" />
-          </div>
+        <Link to="/dashboard" className="flex h-16 items-center gap-3 px-4">
+          <img
+            src="/logo.png"
+            alt="Tank by Tapan Logo"
+            className="h-9 w-9 shrink-0 rounded-xl object-contain bg-white p-0.5 shadow-glow"
+          />
           {!collapsed && (
             <div className="leading-tight">
-              <div className="text-sm font-semibold">Tank by <span className="text-muted-foreground">Tapan</span></div>
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{roleLabel}</div>
+              <div className="text-sm font-bold tracking-tight text-sidebar-foreground">
+                Tank by <span className="text-primary font-black">Tapan</span>
+              </div>
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{roleLabel}</div>
             </div>
           )}
         </Link>
@@ -102,7 +111,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <NavLink key={item.to} item={item} active={path.startsWith(item.to)} collapsed={collapsed} />
           ))}
 
-          {isStaff && (
+          {me.isAdmin && (
             <>
               <SectionLabel collapsed={collapsed}>Admin</SectionLabel>
               {ADMIN.filter(visible).map((item) => (
@@ -167,8 +176,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* Mobile bottom nav */}
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/85 px-2 pb-[env(safe-area-inset-bottom)] pt-1.5 backdrop-blur-lg md:hidden">
-        <ul className="grid grid-cols-4">
-          {MOBILE_TABS.map((t) => {
+        <ul className={cn("grid", filteredMobileTabs.length === 3 ? "grid-cols-3" : "grid-cols-4")}>
+          {filteredMobileTabs.map((t) => {
             const active = path === t.to || (t.to !== "/dashboard" && path.startsWith(t.to));
             const Icon = t.icon;
             return (

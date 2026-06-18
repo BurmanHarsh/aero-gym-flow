@@ -2,16 +2,14 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-const FROM = "Tank by Tapan <onboarding@resend.dev>";
-
-async function send(to: string, subject: string, html: string) {
+async function send(from: string, to: string, subject: string, html: string) {
   const key = process.env.RESEND_API_KEY;
   if (!key) throw new Error("RESEND_API_KEY not configured");
   
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-    body: JSON.stringify({ from: FROM, to: [to], subject, html }),
+    body: JSON.stringify({ from, to: [to], subject, html }),
   });
   
   if (!res.ok) {
@@ -30,7 +28,7 @@ async function send(to: string, subject: string, html: string) {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
           body: JSON.stringify({
-            from: FROM,
+            from,
             to: [fallbackEmail],
             subject: `[Test Sandbox for ${to}] ${subject}`,
             html: `
@@ -73,12 +71,13 @@ export const sendWelcomeEmail = createServerFn({ method: "POST" })
     z.object({ to: z.string().email(), name: z.string().min(1), plan: z.string().optional(), expiresAt: z.string().optional() }).parse(d),
   )
   .handler(async ({ data }) => {
+    const from = "Tank by Tapan <welcome@tankbytapan.in>";
     const body = `
       <p>Hi ${data.name}, welcome to the gym! Your membership is now active.</p>
       ${data.plan ? `<p><strong>Plan:</strong> ${data.plan}</p>` : ""}
       ${data.expiresAt ? `<p><strong>Valid until:</strong> ${data.expiresAt}</p>` : ""}
       <p>See you on the floor 💪</p>`;
-    return send(data.to, "Welcome to the gym 🎉", shell(`Welcome, ${data.name}!`, body));
+    return send(from, data.to, "Welcome to the gym 🎉", shell(`Welcome, ${data.name}!`, body));
   });
 
 export const sendReceiptEmail = createServerFn({ method: "POST" })
@@ -87,6 +86,7 @@ export const sendReceiptEmail = createServerFn({ method: "POST" })
     z.object({ to: z.string().email(), name: z.string().min(1), invoiceNumber: z.string(), amount: z.string(), method: z.string() }).parse(d),
   )
   .handler(async ({ data }) => {
+    const from = "Tank by Tapan Billing <billing@tankbytapan.in>";
     const body = `
       <p>Hi ${data.name}, we've received your payment. Thank you!</p>
       <table style="width:100%;margin-top:12px;font-size:13px">
@@ -94,5 +94,5 @@ export const sendReceiptEmail = createServerFn({ method: "POST" })
         <tr><td style="color:#7b8299">Amount</td><td style="text-align:right;font-weight:600">${data.amount}</td></tr>
         <tr><td style="color:#7b8299">Method</td><td style="text-align:right;text-transform:capitalize">${data.method}</td></tr>
       </table>`;
-    return send(data.to, `Receipt · ${data.invoiceNumber}`, shell("Payment received", body));
+    return send(from, data.to, `Receipt · ${data.invoiceNumber}`, shell("Payment received", body));
   });

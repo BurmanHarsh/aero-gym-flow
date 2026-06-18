@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,10 +11,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Wallet, Banknote, CreditCard, Smartphone, Plus, Download } from "lucide-react";
 import { toast } from "sonner";
+import { sendReceiptEmail } from "@/lib/aerogym/email.functions";
 
 
 export const Route = createFileRoute("/_authenticated/billing")({
   head: () => ({ meta: [{ title: "Billing · Tank by Tapan" }] }),
+  beforeLoad: async () => {
+    const { data } = await supabase.auth.getUser();
+    if (!data.user) throw redirect({ to: "/auth" });
+    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id).in("role", ["admin"]);
+    if (!roles || roles.length === 0) throw redirect({ to: "/dashboard" });
+  },
   component: BillingPage,
 });
 
@@ -29,7 +36,7 @@ interface Invoice {
   id: string; invoice_number: string; member_id: string;
   amount_cents: number; total_cents: number; status: string;
   issued_at: string; due_date: string | null;
-  member: { full_name: string; member_code: string } | null;
+  member: { full_name: string; member_code: string; email: string | null } | null;
 }
 
 function money(c: number) { return new Intl.NumberFormat(undefined, { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(c / 100); }
@@ -41,7 +48,7 @@ function BillingPage() {
   const [rows, setRows] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [active, setActive] = useState<Invoice | null>(null);
-  const isStaff = me.isAdmin || me.roles.includes("front_desk");
+  const isStaff = me.isAdmin;
   const [issueOpen, setIssueOpen] = useState(false);
   const [plans, setPlans] = useState<Plan[]>([]);
 
@@ -92,7 +99,7 @@ function BillingPage() {
       setLoading(false);
       return;
     }
-    let q = supabase.from("invoices").select("*, member:members(full_name, member_code)").order("issued_at", { ascending: false }).limit(200);
+    let q = supabase.from("invoices").select("*, member:members(full_name, member_code, email)").order("issued_at", { ascending: false }).limit(200);
     if (tab !== "all") q = q.eq("status", tab);
     const { data } = await q;
     setRows((data ?? []) as Invoice[]);
@@ -190,6 +197,7 @@ function KPI({ label, value, tone }: { label: string; value: string; tone: "warn
 function PaymentDialog({ invoice, onClose }: { invoice: Invoice; onClose: () => void }) {
   const me = useCurrentUser();
   const isStaff = me.isStaff;
+  const receiptEmail = useServerFn(sendReceiptEmail);
   const [method, setMethod] = useState<"cash" | "upi" | "card" | "bank">("upi");
   const [amount, setAmount] = useState((invoice.total_cents / 100).toString());
   const [ref, setRef] = useState("");
@@ -209,6 +217,21 @@ function PaymentDialog({ invoice, onClose }: { invoice: Invoice; onClose: () => 
     if (error) { toast.error(error.message); setBusy(false); return; }
     if (cents >= invoice.total_cents) {
       await supabase.from("invoices").update({ status: "paid", paid_at: new Date().toISOString() }).eq("id", invoice.id);
+      
+      // Trigger receipt email if member has an email address
+      if (invoice.member?.email) {
+        receiptEmail({
+          data: {
+            to: invoice.member.email,
+            name: invoice.member.full_name,
+            invoiceNumber: invoice.invoice_number,
+            amount: money(cents),
+            method: method
+          }
+        }).catch((err) => {
+          console.error("Failed to send payment receipt email:", err);
+        });
+      }
     }
     toast.success("Payment recorded"); setBusy(false); onClose();
   }

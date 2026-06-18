@@ -62,7 +62,7 @@ function PlansPage() {
   const [uploading, setUploading] = useState<string | null>(null); // holds planId during upload
   const fileInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
 
-  const isStaff = me.isStaff;
+  const isStaff = me.isAdmin;
 
   async function load() {
     setLoading(true);

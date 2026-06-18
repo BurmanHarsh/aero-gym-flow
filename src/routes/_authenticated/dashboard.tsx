@@ -24,6 +24,7 @@ import {
   Plus,
   QrCode,
   Receipt,
+  Settings,
   ShieldCheck,
   TrendingUp,
   UserCheck,
@@ -120,15 +121,30 @@ function Dashboard() {
   const dashboardStats = s.data as DashboardStats | undefined;
   const attendance = (a.data ?? []) as AttendancePoint[];
 
-  return me.isStaff ? (
-    <AdminDashboard
-      stats={dashboardStats}
-      attendance={attendance}
-      recentInvoices={recentInvoicesQuery.data ?? []}
-      inflowLoading={recentInvoicesQuery.isLoading}
-    />
-  ) : (
-    <MemberDashboard user={me} />
+  return (
+    <div className="relative min-h-[calc(100vh-8rem)]">
+      {/* Full Page Gym Image Background */}
+      <div className="absolute inset-0 -mx-4 -my-6 md:-mx-8 md:-my-12 z-0 pointer-events-none overflow-hidden select-none opacity-[0.22]">
+        <div 
+          className="h-full w-full bg-cover bg-center md:bg-fixed" 
+          style={{ backgroundImage: `url('/gym-bg.jpg')` }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/70 to-background" />
+      </div>
+
+      <div className="relative z-10">
+        {me.isStaff ? (
+          <AdminDashboard
+            stats={dashboardStats}
+            attendance={attendance}
+            recentInvoices={recentInvoicesQuery.data ?? []}
+            inflowLoading={recentInvoicesQuery.isLoading}
+          />
+        ) : (
+          <MemberDashboard user={me} />
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -184,6 +200,7 @@ function AdminDashboard({
   recentInvoices: any[];
   inflowLoading: boolean;
 }) {
+  const me = useCurrentUser();
   const expensesQuery = useQuery({
     queryKey: ["expenses-monthly"],
     queryFn: async () => {
@@ -199,51 +216,112 @@ function AdminDashboard({
       if (error) throw error;
       return data ?? [];
     },
+    enabled: me.isAdmin,
   });
 
   const totalExpensesCents = (expensesQuery.data ?? []).reduce((sum, exp) => sum + exp.amount_cents, 0);
   const netProfitCents = (d?.monthRevenueCents ?? 0) - totalExpensesCents;
 
-  const plans = useQuery({ queryKey: ["membership-plans"], queryFn: fetchPlans });
+  const plans = useQuery({ 
+    queryKey: ["membership-plans"], 
+    queryFn: fetchPlans,
+    enabled: me.isAdmin,
+  });
 
   return (
     <div className="space-y-8">
-      <DashboardHeader title="Admin command center" subtitle="Revenue, growth, collection health, and staff controls." />
+      <DashboardHeader 
+        title={me.isAdmin ? "Admin command center" : "Front desk portal"} 
+        subtitle={me.isAdmin ? "Revenue, growth, collection health, and staff controls." : "Manage gym members, registrations, and inventory catalog."} 
+      />
 
       <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <StatCard label="Total members" value={d?.totalMembers ?? "-"} icon={Users} tone="primary" hint={`${d?.activeMembers ?? 0} active`} />
-        <StatCard label="New registrations" value={d?.newRegistrations ?? "-"} icon={UserPlus} tone="info" hint="This calendar month" />
-        <StatCard label="Expired memberships" value={d?.expiredMembers ?? "-"} icon={UserMinus} tone="destructive" />
-        <StatCard label="Monthly revenue" value={d ? fmtMoney(d.monthRevenueCents) : "-"} delta={d?.revenueDelta} icon={Wallet} tone="success" />
-        <StatCard label="Monthly expenses" value={expensesQuery.isLoading ? "Loading..." : fmtMoney(totalExpensesCents)} icon={Wallet} tone="warning" hint="All operating costs" />
-        <StatCard label="Net profit" value={expensesQuery.isLoading ? "Loading..." : fmtMoney(netProfitCents)} icon={TrendingUp} tone={netProfitCents >= 0 ? "success" : "destructive"} hint="Revenue minus Expenses" />
-        <StatCard label="Collection rate" value={d ? `${d.collectionRate.toFixed(0)}%` : "-"} icon={TrendingUp} tone="success" />
-        <StatCard label="Pending invoices" value={d?.pendingInvoices ?? "-"} icon={Receipt} tone="warning" />
+        <Link to="/members" className="block">
+          <StatCard label="Total members" value={d?.totalMembers ?? "-"} icon={Users} tone="primary" hint={`${d?.activeMembers ?? 0} active`} />
+        </Link>
+        <Link to="/members" className="block">
+          <StatCard label="New registrations" value={d?.newRegistrations ?? "-"} icon={UserPlus} tone="info" hint="This calendar month" />
+        </Link>
+        <Link to="/members" className="block">
+          <StatCard label="Expired memberships" value={d?.expiredMembers ?? "-"} icon={UserMinus} tone="destructive" />
+        </Link>
+        {me.isAdmin ? (
+          <>
+            <Link to="/expenses" className="block">
+              <StatCard label="Monthly revenue" value={d ? fmtMoney(d.monthRevenueCents) : "-"} delta={d?.revenueDelta} icon={Wallet} tone="success" />
+            </Link>
+            <Link to="/expenses" className="block">
+              <StatCard label="Monthly expenses" value={expensesQuery.isLoading ? "Loading..." : fmtMoney(totalExpensesCents)} icon={Wallet} tone="warning" hint="All operating costs" />
+            </Link>
+            <Link to="/expenses" className="block">
+              <StatCard label="Net profit" value={expensesQuery.isLoading ? "Loading..." : fmtMoney(netProfitCents)} icon={TrendingUp} tone={netProfitCents >= 0 ? "success" : "destructive"} hint="Revenue minus Expenses" />
+            </Link>
+            <StatCard label="Collection rate" value={d ? `${d.collectionRate.toFixed(0)}%` : "-"} icon={TrendingUp} tone="success" />
+            <Link to="/billing" className="block">
+              <StatCard label="Pending invoices" value={d?.pendingInvoices ?? "-"} icon={Receipt} tone="warning" />
+            </Link>
+          </>
+        ) : null}
         <StatCard label="Expiring soon" value={d?.expiringSoon ?? "-"} icon={AlertTriangle} tone="warning" hint="Next 7 days" />
         <StatCard label="Check-ins today" value={d?.checkInsToday ?? "-"} icon={QrCode} tone="info" />
       </section>
 
       <section className="grid gap-4 lg:grid-cols-3">
-        <Panel className="lg:col-span-2">
-          <div className="flex items-center justify-between mb-4">
-            <PanelTitle title="Recent Cash Inflow" subtitle="Offline payments and registrations" />
-            <Button asChild variant="ghost" size="sm" className="text-xs text-primary hover:text-primary">
-              <Link to="/billing">View all</Link>
-            </Button>
-          </div>
-          <InflowList invoices={recentInvoices} loading={inflowLoading} />
-        </Panel>
+        {me.isAdmin ? (
+          <>
+            <Panel className="lg:col-span-2">
+              <div className="flex items-center justify-between mb-4">
+                <PanelTitle title="Recent Cash Inflow" subtitle="Offline payments and registrations" />
+                <Button asChild variant="ghost" size="sm" className="text-xs text-primary hover:text-primary">
+                  <Link to="/billing">View all</Link>
+                </Button>
+              </div>
+              <InflowList invoices={recentInvoices} loading={inflowLoading} />
+            </Panel>
 
-        <Panel>
-          <h3 className="mb-4 text-sm font-semibold">Admin controls</h3>
-          <div className="space-y-3">
-            <PlanManager plans={plans.data ?? []} loading={plans.isLoading} error={plans.error instanceof Error ? plans.error.message : ""} />
-            <BroadcastManager />
-            <ActionLink to="/employees" icon={ShieldCheck} label="Manage employees" hint="Roles and access" />
-            <ActionLink to="/audit" icon={ClipboardList} label="Review audit logs" hint="Sensitive activity" />
-            <ActionLink to="/billing" icon={Banknote} label="Inspect collections" hint="Invoices and payments" />
-          </div>
-        </Panel>
+            <Panel>
+              <h3 className="mb-4 text-sm font-semibold">Admin controls</h3>
+              <div className="space-y-3">
+                <PlanManager plans={plans.data ?? []} loading={plans.isLoading} error={plans.error instanceof Error ? plans.error.message : ""} />
+                <BroadcastManager />
+                <ActionLink to="/employees" icon={ShieldCheck} label="Manage employees" hint="Roles and access" />
+                <ActionLink to="/audit" icon={ClipboardList} label="Review audit logs" hint="Sensitive activity" />
+                <ActionLink to="/billing" icon={Banknote} label="Inspect collections" hint="Invoices and payments" />
+              </div>
+            </Panel>
+          </>
+        ) : (
+          <>
+            <Panel className="lg:col-span-2">
+              <PanelTitle title="Gym Operations Overview" subtitle="Daily operations and check-in summary" />
+              <div className="grid gap-4 sm:grid-cols-2 mt-4">
+                <div className="rounded-xl border border-border/60 bg-muted/30 p-4">
+                  <h4 className="text-sm font-semibold mb-2">Members Registry</h4>
+                  <p className="text-xs text-muted-foreground mb-4">Add new members, renew plans, or modify profiles.</p>
+                  <Button asChild size="sm" className="w-full gradient-primary text-primary-foreground font-medium">
+                    <Link to="/members">Go to Members</Link>
+                  </Button>
+                </div>
+                <div className="rounded-xl border border-border/60 bg-muted/30 p-4">
+                  <h4 className="text-sm font-semibold mb-2">Supplements Catalog</h4>
+                  <p className="text-xs text-muted-foreground mb-4">Check catalog levels and manage items.</p>
+                  <Button asChild size="sm" className="w-full gradient-primary text-primary-foreground font-medium">
+                    <Link to="/inventory">Go to Inventory</Link>
+                  </Button>
+                </div>
+              </div>
+            </Panel>
+
+            <Panel>
+              <h3 className="mb-4 text-sm font-semibold">Staff Actions</h3>
+              <div className="space-y-3">
+                <ActionLink to="/members" icon={Users} label="Manage Members" hint="Profiles and registrations" />
+                <ActionLink to="/inventory" icon={Archive} label="Manage Inventory" hint="Supplements stock levels" />
+                <ActionLink to="/settings" icon={Settings} label="Account Settings" hint="Change password and profile" />
+              </div>
+            </Panel>
+          </>
+        )}
       </section>
 
       <section className="grid gap-4 lg:grid-cols-3">
@@ -252,7 +330,9 @@ function AdminDashboard({
           <AttendanceChart data={attendance} />
         </Panel>
         <div className="space-y-4">
-          <HealthItem label="Revenue risk" value={d?.pendingInvoices ?? 0} hint="pending invoices" icon={Receipt} tone="warning" />
+          {me.isAdmin && (
+            <HealthItem label="Revenue risk" value={d?.pendingInvoices ?? 0} hint="pending invoices" icon={Receipt} tone="warning" />
+          )}
           <HealthItem label="Retention watch" value={d?.expiringSoon ?? 0} hint="members expiring soon" icon={AlertTriangle} tone="warning" />
         </div>
       </section>
@@ -516,13 +596,10 @@ function MemberDashboard({ user }: { user: ReturnType<typeof useCurrentUser> }) 
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Hello, {user.fullName}!</h1>
-          <p className="text-sm text-muted-foreground">Welcome back to Tank by Tapan. Here is your summary for today.</p>
-        </div>
-        <div className="rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground">{todayLabel()}</div>
-      </div>
+      <DashboardHeader
+        title={`Hello, ${user.fullName}!`}
+        subtitle="Welcome back to Tank by Tapan. Here is your summary for today."
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {/* Plan Card */}
@@ -600,12 +677,6 @@ function MemberDashboard({ user }: { user: ReturnType<typeof useCurrentUser> }) 
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Quick Actions</h3>
           <div className="mt-3 space-y-2">
             <Button asChild variant="outline" size="sm" className="w-full justify-start gap-2 h-9 text-xs">
-              <Link to="/members">
-                <Users className="h-3.5 w-3.5 text-primary" />
-                <span>Members Directory</span>
-              </Link>
-            </Button>
-            <Button asChild variant="outline" size="sm" className="w-full justify-start gap-2 h-9 text-xs">
               <Link to="/inventory">
                 <Archive className="h-3.5 w-3.5 text-info" />
                 <span>Supplements Catalog</span>
@@ -645,10 +716,16 @@ function MemberDashboard({ user }: { user: ReturnType<typeof useCurrentUser> }) 
                 <div key={s.id} className="flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-background/50 p-2.5">
                   <div className="min-w-0">
                     <p className="truncate text-xs font-semibold">{s.name}</p>
-                    <p className="truncate text-[10px] text-muted-foreground">{s.description || "In stock"}</p>
+                    {s.sale_price_cents && (
+                      <p className="text-[11px] font-bold text-primary mt-0.5">{fmtMoney(s.sale_price_cents)}</p>
+                    )}
                   </div>
-                  <span className="shrink-0 text-xs font-bold text-foreground">
-                    {fmtMoney(s.sale_price_cents ?? 0)}
+                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-semibold border uppercase tracking-wider ${
+                    s.quantity > 0 
+                      ? "bg-success/15 text-success border-success/20" 
+                      : "bg-destructive/15 text-destructive border-destructive/20"
+                  }`}>
+                    {s.quantity > 0 ? "In Stock" : "Out of Stock"}
                   </span>
                 </div>
               ))
@@ -719,12 +796,19 @@ function MemberDashboard({ user }: { user: ReturnType<typeof useCurrentUser> }) 
 
 function DashboardHeader({ title, subtitle }: { title: string; subtitle: string }) {
   return (
-    <header className="flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight md:text-3xl">{title}</h1>
-        <p className="text-sm text-muted-foreground">{subtitle}</p>
+    <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/40 pb-5">
+      <div className="space-y-1">
+        <h1 className="text-2xl font-black md:text-3xl tracking-tight text-foreground">{title}</h1>
+        <p className="text-sm text-muted-foreground leading-relaxed">{subtitle}</p>
       </div>
-      <div className="rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground">{todayLabel()}</div>
+      <div className="flex items-center gap-3 shrink-0">
+        <div className="rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground shadow-sm">
+          {todayLabel()}
+        </div>
+        <div className="h-10 w-10 flex items-center justify-center rounded-xl border border-border bg-white p-0.5 shadow-sm">
+          <img src="/logo.png" alt="Tank Logo" className="h-full w-full object-contain" />
+        </div>
+      </div>
     </header>
   );
 }

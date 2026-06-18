@@ -35,7 +35,7 @@ export const Route = createFileRoute("/_authenticated/expenses")({
   beforeLoad: async () => {
     const { data } = await supabase.auth.getUser();
     if (!data.user) throw redirect({ to: "/auth" });
-    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id).in("role", ["admin", "front_desk"]);
+    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id).in("role", ["admin"]);
     if (!roles || roles.length === 0) throw redirect({ to: "/dashboard" });
   },
   component: ExpensesPage,

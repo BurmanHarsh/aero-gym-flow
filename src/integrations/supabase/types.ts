@@ -600,6 +600,57 @@ export type Database = {
         }
         Relationships: []
       }
+      inventory_sales: {
+        Row: {
+          id: string
+          item_id: string | null
+          item_name: string
+          quantity: number
+          sale_price_cents: number
+          total_amount_cents: number
+          sold_by: string | null
+          sold_at: string
+          payment_method: string
+        }
+        Insert: {
+          id?: string
+          item_id?: string | null
+          item_name: string
+          quantity: number
+          sale_price_cents: number
+          total_amount_cents: number
+          sold_by?: string | null
+          sold_at?: string
+          payment_method?: string
+        }
+        Update: {
+          id?: string
+          item_id?: string | null
+          item_name?: string
+          quantity?: number
+          sale_price_cents?: number
+          total_amount_cents?: number
+          sold_by?: string | null
+          sold_at?: string
+          payment_method?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_sales_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_sales_sold_by_fkey"
+            columns: ["sold_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never

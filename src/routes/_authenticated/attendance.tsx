@@ -34,7 +34,7 @@ function AttendancePage() {
   const [myLatestRecord, setMyLatestRecord] = useState<Record_ | null>(null);
   const [loadingMember, setLoadingMember] = useState(true);
 
-  const isStaff = me.isAdmin || me.roles.includes("front_desk");
+  const isStaff = me.isAdmin;
 
   async function loadFeed() {
     const today = getIndiaDayRange();
