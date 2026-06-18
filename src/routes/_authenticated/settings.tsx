@@ -43,7 +43,7 @@ function SettingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto max-w-4xl space-y-6" suppressHydrationWarning>
       <header>
         <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Settings</h1>
         <p className="text-sm text-muted-foreground">Personalize Tank by Tapan to fit how you work.</p>
@@ -176,7 +176,7 @@ function AccountTab({ me }: { me: ReturnType<typeof useCurrentUser> }) {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8" suppressHydrationWarning>
       <div>
         <h2 className="text-base font-semibold">Profile</h2>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -249,14 +249,14 @@ function AccountTab({ me }: { me: ReturnType<typeof useCurrentUser> }) {
       ) : null}
 
       <form onSubmit={saveProfile} className="space-y-3">
-        <div><Label>Full name</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
-        <div><Label>Phone</Label><Input value={phone} onChange={(e) => setPhone(e.target.value)} /></div>
+        <div><Label>Full name</Label><Input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" suppressHydrationWarning /></div>
+        <div><Label>Phone</Label><Input value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" suppressHydrationWarning /></div>
         <Button type="submit">Save profile</Button>
       </form>
       <div className="border-t border-border pt-6">
         <h2 className="text-base font-semibold">Change password</h2>
         <form onSubmit={changePassword} className="mt-3 space-y-3">
-          <div><Label>New password</Label><Input type="password" minLength={6} value={pw} onChange={(e) => setPw(e.target.value)} required /></div>
+          <div><Label>New password</Label><Input type="password" minLength={6} value={pw} onChange={(e) => setPw(e.target.value)} required autoComplete="new-password" suppressHydrationWarning /></div>
           <Button type="submit" disabled={!pw}>Update password</Button>
         </form>
       </div>
@@ -289,6 +289,13 @@ function SecurityTab({ onLogout }: { onLogout: () => void }) {
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [resetting, setResetting] = useState(false);
+  const [userAgent, setUserAgent] = useState("");
+
+  useEffect(() => {
+    if (typeof navigator !== "undefined") {
+      setUserAgent(navigator.userAgent.slice(0, 80));
+    }
+  }, []);
 
   async function handlePurgeData() {
     if (confirmText !== "RESET DATABASE") return;
@@ -309,11 +316,11 @@ function SecurityTab({ onLogout }: { onLogout: () => void }) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" suppressHydrationWarning>
       <div><h2 className="text-base font-semibold">Sessions & security</h2><p className="mt-1 text-sm text-muted-foreground">Manage your active session and sign out.</p></div>
       <div className="rounded-xl border border-border bg-muted/30 p-4">
         <div className="text-sm font-medium">This device</div>
-        <div className="text-xs text-muted-foreground">{typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 80) : ""}</div>
+        <div className="text-xs text-muted-foreground">{userAgent}</div>
         <div className="mt-1 text-[11px] text-success">● Active now</div>
       </div>
       <Button onClick={onLogout} variant="destructive" className="w-full sm:w-auto">
