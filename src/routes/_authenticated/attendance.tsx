@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, QrCode, Fingerprint, ArrowRight, LogOut as CheckOutIcon } from "lucide-react";
+import { Search, QrCode, ArrowRight, Printer, LogOut as CheckOutIcon } from "lucide-react";
 import { toast } from "sonner";
 import { getIndiaDayRange } from "@/lib/aerogym/dates";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/_authenticated/attendance")({
   head: () => ({ meta: [{ title: "Attendance · Tank by Tapan" }] }),
@@ -28,13 +29,55 @@ function AttendancePage() {
   const [feed, setFeed] = useState<Record_[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState("");
+  const [qrModalOpen, setQrModalOpen] = useState(false);
 
   // Member-only view states
   const [myMember, setMyMember] = useState<Member | null>(null);
   const [myLatestRecord, setMyLatestRecord] = useState<Record_ | null>(null);
   const [loadingMember, setLoadingMember] = useState(true);
 
-  const isStaff = me.isAdmin;
+  const isStaff = me.isAdmin || me.roles.includes("front_desk");
+
+  const scanUrl = "https://tankbytapan.in/scan-checkin?key=tank_gate_9bb34964";
+  
+  const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&color=14b8a6&bgcolor=111733&data=${encodeURIComponent(scanUrl)}`;
+
+  const handlePrint = () => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Print Wall QR - Tank by Tapan</title>
+          <style>
+            body { background: #0b1020; color: white; font-family: sans-serif; text-align: center; padding: 40px; margin: 0; }
+            .card { max-width: 400px; margin: 50px auto; background: #111733; border: 2px solid #1f2747; border-radius: 24px; padding: 40px; box-shadow: 0 20px 50px rgba(20, 184, 166, 0.15); }
+            .logo { font-size: 24px; font-weight: 800; color: #14b8a6; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 2px; }
+            img { border-radius: 16px; border: 4px solid #14b8a6; padding: 8px; background: #111733; }
+            h1 { font-size: 28px; margin: 24px 0 8px; font-weight: 700; }
+            p { font-size: 14px; color: #c9cfe0; margin-bottom: 24px; line-height: 1.6; }
+            .footer { font-size: 11px; color: #7b8299; margin-top: 30px; border-top: 1px solid #1f2747; padding-top: 20px; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <div class="logo">Tank by Tapan</div>
+            <img src="${qrApiUrl}" width="300" height="300" />
+            <h1>SELF-CHECK-IN</h1>
+            <p>Scan this QR code with your phone camera to instantly check in or out of the gym.</p>
+            <div class="footer">Tank Strength & Conditioning Club</div>
+          </div>
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 500);
+            }
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
 
   async function loadFeed() {
     const today = getIndiaDayRange();
@@ -167,64 +210,7 @@ function AttendancePage() {
     loadFeed();
   }
 
-  async function handleOwnCheckIn() {
-    if (!myMember) return;
 
-    // Check if member is already checked in
-    const { data: activeRecords, error: activeErr } = await supabase
-      .from("attendance_records")
-      .select("id")
-      .eq("member_id", myMember.id)
-      .is("check_out_at", null);
-
-    if (activeErr) {
-      toast.error(activeErr.message);
-      return;
-    }
-
-    if (activeRecords && activeRecords.length > 0) {
-      toast.error("You are already checked in. Please check out first.");
-      return;
-    }
-
-    const { error } = await supabase
-      .from("attendance_records")
-      .insert({ member_id: myMember.id, method: "manual", recorded_by: me.user?.id ?? null });
-    if (error) return toast.error(error.message);
-    toast.success("Checked in successfully");
-    
-    // Refresh latest record
-    const { data: attData } = await supabase
-      .from("attendance_records")
-      .select("*, member:members(full_name, member_code)")
-      .eq("member_id", myMember.id)
-      .order("check_in_at", { ascending: false })
-      .limit(1);
-    setMyLatestRecord((attData?.[0] ?? null) as Record_ | null);
-    refreshAttendanceStats();
-    loadFeed();
-  }
-
-  async function handleOwnCheckOut() {
-    if (!myLatestRecord) return;
-    const { error } = await supabase
-      .from("attendance_records")
-      .update({ check_out_at: new Date().toISOString() })
-      .eq("id", myLatestRecord.id);
-    if (error) return toast.error(error.message);
-    toast.success("Checked out successfully");
-
-    // Refresh latest record
-    const { data: attData } = await supabase
-      .from("attendance_records")
-      .select("*, member:members(full_name, member_code)")
-      .eq("member_id", myMember!.id)
-      .order("check_in_at", { ascending: false })
-      .limit(1);
-    setMyLatestRecord((attData?.[0] ?? null) as Record_ | null);
-    refreshAttendanceStats();
-    loadFeed();
-  }
 
   return (
     <div className="space-y-6">
@@ -244,7 +230,7 @@ function AttendancePage() {
               <div className="grid h-9 w-9 place-items-center rounded-lg gradient-primary text-primary-foreground"><QrCode className="h-4 w-4" /></div>
               <div>
                 <h3 className="text-sm font-semibold">Quick check-in</h3>
-                <p className="text-xs text-muted-foreground">QR · Biometric · Manual</p>
+                <p className="text-xs text-muted-foreground">QR · Manual</p>
               </div>
             </div>
             <div className="relative">
@@ -272,7 +258,7 @@ function AttendancePage() {
             </div>
             <div className="mt-4 grid grid-cols-2 gap-2">
               <Button variant="outline" onClick={() => toast.info("Point any QR at the kiosk — auto-scanned via webhook")}><QrCode className="mr-2 h-4 w-4" /> QR Mode</Button>
-              <Button variant="outline" onClick={() => toast.info("Biometric reader simulated — touch sensor on kiosk")}><Fingerprint className="mr-2 h-4 w-4" /> Biometric</Button>
+              <Button variant="outline" onClick={() => setQrModalOpen(true)}><QrCode className="mr-2 h-4 w-4" /> Get Wall QR</Button>
             </div>
           </div>
         ) : (
@@ -306,23 +292,34 @@ function AttendancePage() {
                   
                   {myLatestRecord && !myLatestRecord.check_out_at ? (
                     <div className="mt-4 space-y-3">
-                      <div className="text-center text-xs text-muted-foreground">
-                        You checked in at <strong className="text-foreground">{new Date(myLatestRecord.check_in_at).toLocaleTimeString()}</strong>.
+                      <div className="flex items-center gap-2 rounded-xl bg-success/10 border border-success/20 p-3 text-success text-xs">
+                        <span className="h-2 w-2 rounded-full bg-success animate-pulse shrink-0" />
+                        <div className="flex-1">
+                          <strong>Currently Checked In</strong>
+                          <div className="text-[10px] text-muted-foreground mt-0.5">Checked in at {new Date(myLatestRecord.check_in_at).toLocaleTimeString()}</div>
+                        </div>
                       </div>
-                      <Button onClick={handleOwnCheckOut} className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                        Check-out
-                      </Button>
+                      <p className="text-center text-[11px] text-muted-foreground pt-1.5 leading-relaxed">
+                        To check out, please scan the physical <strong>Wall QR Code</strong> at the gym entrance.
+                      </p>
                     </div>
                   ) : (
-                    <div className="mt-4">
+                    <div className="mt-4 space-y-3">
+                      <div className="flex items-center gap-2 rounded-xl bg-muted/30 border border-border p-3 text-muted-foreground text-xs">
+                        <span className="h-2 w-2 rounded-full bg-muted-foreground shrink-0" />
+                        <div className="flex-1">
+                          <strong>Currently Checked Out</strong>
+                          <div className="text-[10px] text-muted-foreground mt-0.5">No active check-in session today.</div>
+                        </div>
+                      </div>
                       {myMember.status !== "active" ? (
-                        <p className="text-center text-xs text-destructive">
+                        <p className="text-center text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-xl p-3">
                           Your membership is currently inactive. Please renew to check in.
                         </p>
                       ) : (
-                        <Button onClick={handleOwnCheckIn} className="w-full gradient-primary text-primary-foreground">
-                          Check-in <ArrowRight className="ml-1 h-3 w-3" />
-                        </Button>
+                        <p className="text-center text-[11px] text-muted-foreground pt-1.5 leading-relaxed">
+                          To check in, please scan the physical <strong>Wall QR Code</strong> at the gym entrance.
+                        </p>
                       )}
                     </div>
                   )}
@@ -354,6 +351,40 @@ function AttendancePage() {
           </div>
         </div>
       </div>
+
+      <Dialog open={qrModalOpen} onOpenChange={setQrModalOpen}>
+        <DialogContent className="max-w-md bg-[#111733] border-2 border-[#1f2747] text-white">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold tracking-tight text-center text-[#14b8a6]">
+              Gym Wall QR Code
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center justify-center p-4 space-y-4">
+            <div className="rounded-2xl border-4 border-[#14b8a6] p-2 bg-[#111733] shadow-[0_0_30px_rgba(20,184,166,0.25)]">
+              <img 
+                src={qrApiUrl} 
+                alt="Gym Wall QR Code" 
+                className="h-[250px] w-[250px] object-contain rounded-lg"
+              />
+            </div>
+            <p className="text-xs text-center text-[#c9cfe0] max-w-xs leading-relaxed">
+              Print this static QR code and paste it on the gym wall. Members can scan it with their mobile phones to check in and out of the gym.
+            </p>
+            <div className="w-full text-[10px] text-[#7b8299] bg-[#0b1020] border border-[#1f2747] rounded-lg p-2.5 space-y-1 font-mono">
+              <div className="flex justify-between"><span>Check-in URL:</span> <span className="text-white truncate max-w-[200px]">{scanUrl}</span></div>
+              <div className="flex justify-between"><span>Required Secret:</span> <span className="text-white">key=gate_wall_static_qr</span></div>
+            </div>
+          </div>
+          <DialogFooter className="grid grid-cols-2 gap-2">
+            <Button variant="outline" onClick={() => setQrModalOpen(false)} className="border-border hover:bg-white/5 text-white">
+              Close
+            </Button>
+            <Button onClick={handlePrint} className="gradient-primary text-primary-foreground hover:opacity-90">
+              <Printer className="mr-2 h-4 w-4" /> Print QR Card
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

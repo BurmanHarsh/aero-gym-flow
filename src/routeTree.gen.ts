@@ -13,6 +13,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
+import { Route as AuthenticatedScanCheckinRouteImport } from './routes/_authenticated/scan-checkin'
 import { Route as AuthenticatedPlansRouteImport } from './routes/_authenticated/plans'
 import { Route as AuthenticatedMembersRouteImport } from './routes/_authenticated/members'
 import { Route as AuthenticatedLeadsRouteImport } from './routes/_authenticated/leads'
@@ -44,6 +45,12 @@ const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedScanCheckinRoute =
+  AuthenticatedScanCheckinRouteImport.update({
+    id: '/scan-checkin',
+    path: '/scan-checkin',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedPlansRoute = AuthenticatedPlansRouteImport.update({
   id: '/plans',
   path: '/plans',
@@ -114,6 +121,7 @@ export interface FileRoutesByFullPath {
   '/leads': typeof AuthenticatedLeadsRoute
   '/members': typeof AuthenticatedMembersRoute
   '/plans': typeof AuthenticatedPlansRoute
+  '/scan-checkin': typeof AuthenticatedScanCheckinRoute
   '/settings': typeof AuthenticatedSettingsRoute
 }
 export interface FileRoutesByTo {
@@ -130,6 +138,7 @@ export interface FileRoutesByTo {
   '/leads': typeof AuthenticatedLeadsRoute
   '/members': typeof AuthenticatedMembersRoute
   '/plans': typeof AuthenticatedPlansRoute
+  '/scan-checkin': typeof AuthenticatedScanCheckinRoute
   '/settings': typeof AuthenticatedSettingsRoute
 }
 export interface FileRoutesById {
@@ -148,6 +157,7 @@ export interface FileRoutesById {
   '/_authenticated/leads': typeof AuthenticatedLeadsRoute
   '/_authenticated/members': typeof AuthenticatedMembersRoute
   '/_authenticated/plans': typeof AuthenticatedPlansRoute
+  '/_authenticated/scan-checkin': typeof AuthenticatedScanCheckinRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
 }
 export interface FileRouteTypes {
@@ -166,6 +176,7 @@ export interface FileRouteTypes {
     | '/leads'
     | '/members'
     | '/plans'
+    | '/scan-checkin'
     | '/settings'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -182,6 +193,7 @@ export interface FileRouteTypes {
     | '/leads'
     | '/members'
     | '/plans'
+    | '/scan-checkin'
     | '/settings'
   id:
     | '__root__'
@@ -199,6 +211,7 @@ export interface FileRouteTypes {
     | '/_authenticated/leads'
     | '/_authenticated/members'
     | '/_authenticated/plans'
+    | '/_authenticated/scan-checkin'
     | '/_authenticated/settings'
   fileRoutesById: FileRoutesById
 }
@@ -236,6 +249,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof AuthenticatedSettingsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/scan-checkin': {
+      id: '/_authenticated/scan-checkin'
+      path: '/scan-checkin'
+      fullPath: '/scan-checkin'
+      preLoaderRoute: typeof AuthenticatedScanCheckinRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/plans': {
@@ -330,6 +350,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedLeadsRoute: typeof AuthenticatedLeadsRoute
   AuthenticatedMembersRoute: typeof AuthenticatedMembersRoute
   AuthenticatedPlansRoute: typeof AuthenticatedPlansRoute
+  AuthenticatedScanCheckinRoute: typeof AuthenticatedScanCheckinRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
 }
 
@@ -345,6 +366,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedLeadsRoute: AuthenticatedLeadsRoute,
   AuthenticatedMembersRoute: AuthenticatedMembersRoute,
   AuthenticatedPlansRoute: AuthenticatedPlansRoute,
+  AuthenticatedScanCheckinRoute: AuthenticatedScanCheckinRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
 }
 
