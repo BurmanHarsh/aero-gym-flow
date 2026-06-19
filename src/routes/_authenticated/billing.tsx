@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Wallet, Banknote, CreditCard, Smartphone, Plus, Download } from "lucide-react";
+import { Wallet, Banknote, CreditCard, Smartphone, Plus, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { sendReceiptEmail } from "@/lib/aerogym/email.functions";
 
@@ -36,6 +36,7 @@ interface Invoice {
   id: string; invoice_number: string; member_id: string;
   amount_cents: number; total_cents: number; status: string;
   issued_at: string; due_date: string | null;
+  coupon_code?: string | null; coupon_discount_cents?: number | null;
   member: { full_name: string; member_code: string; email: string | null } | null;
 }
 
@@ -58,37 +59,114 @@ function BillingPage() {
     });
   }, []);
 
-  function handleExportCSV() {
+  function handleExportPDF() {
     if (rows.length === 0) {
       toast.error("No invoices to export");
       return;
     }
-    const dataToExport = rows.map(r => ({
-      "Invoice Number": r.invoice_number,
-      "Member Name": r.member?.full_name ?? "Walk-in Member",
-      "Member Code": r.member?.member_code ?? "",
-      "Amount (INR)": r.total_cents / 100,
-      "Status": r.status,
-      "Issued Date": new Date(r.issued_at).toLocaleDateString(),
-      "Due Date": r.due_date ? new Date(r.due_date).toLocaleDateString() : ""
-    }));
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      toast.error("Popup blocked! Please allow popups to export PDF.");
+      return;
+    }
 
-    const headers = Object.keys(dataToExport[0]).join(",");
-    const csvRows = dataToExport.map(row => 
-      Object.values(row).map(val => {
-        const str = String(val).replace(/"/g, '""');
-        return str.includes(",") || str.includes("\n") ? `"${str}"` : str;
-      }).join(",")
-    );
-    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers, ...csvRows].join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `invoices_export_${new Date().toISOString().slice(0,10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast.success("CSV export downloaded");
+    const htmlContent = `
+      <html>
+        <head>
+          <title>Invoices Report - Tank by Tapan</title>
+          <style>
+            body {
+              font-family: ui-sans-serif, system-ui, sans-serif;
+              background-color: #ffffff;
+              color: #111827;
+              padding: 24px;
+            }
+            h1 {
+              font-size: 24px;
+              margin-bottom: 4px;
+              color: #14b8a6;
+            }
+            .subtitle {
+              font-size: 14px;
+              color: #6b7280;
+              margin-bottom: 24px;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 16px;
+            }
+            th, td {
+              border-bottom: 1px solid #e5e7eb;
+              padding: 12px 8px;
+              text-align: left;
+              font-size: 13px;
+            }
+            th {
+              background-color: #f9fafb;
+              font-weight: 600;
+              color: #374151;
+            }
+            .status-paid {
+              color: #059669;
+              font-weight: 600;
+            }
+            .status-pending {
+              color: #d97706;
+              font-weight: 600;
+            }
+            .status-refunded {
+              color: #2563eb;
+              font-weight: 600;
+            }
+            .status-overdue {
+              color: #dc2626;
+              font-weight: 600;
+            }
+            @media print {
+              body { padding: 0; }
+              button { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <h1>Tank by Tapan</h1>
+          <div class="subtitle">Invoices Report · Generated on ${new Date().toLocaleDateString()}</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Invoice Number</th>
+                <th>Member Name</th>
+                <th>Member Code</th>
+                <th>Amount (INR)</th>
+                <th>Status</th>
+                <th>Issued Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map(r => `
+                <tr>
+                  <td style="font-family: monospace;">${r.invoice_number}</td>
+                  <td>${r.member?.full_name ?? "Walk-in Member"}</td>
+                  <td style="font-family: monospace;">${r.member?.member_code ?? "—"}</td>
+                  <td>Rs ${((r.total_cents) / 100).toLocaleString()}</td>
+                  <td><span class="status-${r.status}">${r.status.toUpperCase()}</span></td>
+                  <td>${new Date(r.issued_at).toLocaleDateString()}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `;
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
   }
 
   async function load() {
@@ -133,8 +211,8 @@ function BillingPage() {
           ))}
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={handleExportCSV} variant="outline" size="sm" className="h-9 text-xs">
-            <Download className="mr-1.5 h-3.5 w-3.5" /> Export CSV
+          <Button onClick={handleExportPDF} variant="outline" size="sm" className="h-9 text-xs">
+            <FileText className="mr-1.5 h-3.5 w-3.5" /> Export PDF
           </Button>
           {isStaff && (
             <Dialog open={issueOpen} onOpenChange={setIssueOpen}>
@@ -180,7 +258,7 @@ function BillingPage() {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const m: Record<string, string> = { paid: "bg-success/15 text-success", pending: "bg-warning/15 text-warning", overdue: "bg-destructive/15 text-destructive", cancelled: "bg-muted text-muted-foreground" };
+  const m: Record<string, string> = { paid: "bg-success/15 text-success", pending: "bg-warning/15 text-warning", overdue: "bg-destructive/15 text-destructive", cancelled: "bg-muted text-muted-foreground", refunded: "bg-blue-500/15 text-blue-400" };
   return <span className={`mt-0.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${m[status] ?? "bg-muted"}`}>{status}</span>;
 }
 
@@ -288,8 +366,18 @@ function PaymentDialog({ invoice, onClose }: { invoice: Invoice; onClose: () => 
       <div className="rounded-xl border border-border bg-muted/30 p-4 flex items-center justify-between gap-4">
         <div>
           <div className="text-xs uppercase text-muted-foreground">{invoice.member?.full_name}</div>
+          {invoice.member?.email && (
+            <div className="text-xs text-muted-foreground mt-0.5">{invoice.member.email}</div>
+          )}
           <div className="mt-1 text-2xl font-bold">{money(invoice.total_cents)}</div>
-          <StatusBadge status={invoice.status} />
+          <div className="flex items-center gap-2 mt-1">
+            <StatusBadge status={invoice.status} />
+            {invoice.coupon_code && (
+              <span className="text-[10px] font-semibold text-primary bg-primary/10 border border-primary/20 rounded px-1.5 py-0.5">
+                Coupon: {invoice.coupon_code} (-{money(invoice.coupon_discount_cents ?? 0)})
+              </span>
+            )}
+          </div>
         </div>
         {me.isAdmin && (
           <Button variant="destructive" size="sm" onClick={() => setConfirmingDelete(true)} disabled={busy} className="gradient-destructive shrink-0">
@@ -301,21 +389,24 @@ function PaymentDialog({ invoice, onClose }: { invoice: Invoice; onClose: () => 
         <div className="mt-3 space-y-2">
           <div className="text-sm font-medium">Payments</div>
           <div className="space-y-2">
-            {payments.map((p) => (
-              <div key={p.id} className="flex items-center justify-between rounded-md border border-border bg-card p-2">
-                <div className="text-sm">
-                  <div className="font-medium">{money(p.amount_cents)}</div>
-                  <div className="text-xs text-muted-foreground">{p.method}{p.reference ? ` · ${p.reference}` : ""}</div>
+            {payments.map((p) => {
+              const alreadyReverted = p.amount_cents <= 0 || payments.some((x) => x.reference === `revert:${p.id}` || (x.reference && x.reference.includes(`revert:${p.id}`)));
+              return (
+                <div key={p.id} className="flex items-center justify-between rounded-md border border-border bg-card p-2">
+                  <div className="text-sm">
+                    <div className="font-medium">{money(p.amount_cents)}</div>
+                    <div className="text-xs text-muted-foreground">{p.method}{p.reference ? ` · ${p.reference}` : ""}</div>
+                  </div>
+                  <div>
+                    {isStaff && !alreadyReverted && (
+                      <Button variant="destructive" size="sm" onClick={() => handleRevert(p.id)} disabled={busy}>
+                        Revert payment
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  {isStaff && (
-                    <Button variant="destructive" size="sm" onClick={() => handleRevert(p.id)} disabled={busy}>
-                      Revert payment
-                    </Button>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

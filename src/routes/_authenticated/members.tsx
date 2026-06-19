@@ -42,6 +42,8 @@ interface Member {
   medical_info: string | null;
   photo_url: string | null;
   notes: string | null;
+  coupon_code?: string | null;
+  coupon_discount_cents?: number | null;
 }
 
 interface Plan {
@@ -291,22 +293,85 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
   const [paymentMethod, setPaymentMethod] = useState<string>("cash");
   const [busy, setBusy] = useState(false);
 
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; percent: number; upto: number } | null>(null);
+  const [checkingCoupon, setCheckingCoupon] = useState(false);
+
   useEffect(() => {
     if (!plan_id && plans[0]?.id) setPlanId(plans[0].id);
   }, [plan_id, plans]);
 
+  async function applyCoupon() {
+    if (!couponCode.trim()) {
+      toast.error("Please enter a coupon code");
+      return;
+    }
+    setCheckingCoupon(true);
+    const searchCode = couponCode.trim().toUpperCase();
+    try {
+      const { data, error } = await supabase
+        .from("coupons")
+        .select("*")
+        .eq("code", searchCode)
+        .eq("active", true)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (!data) {
+        toast.error("Invalid or expired coupon code");
+        setAppliedCoupon(null);
+      } else {
+        setAppliedCoupon({
+          code: data.code,
+          percent: data.discount_percent,
+          upto: data.discount_upto_cents,
+        });
+        toast.success(`Coupon "${data.code}" applied successfully!`);
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to validate coupon");
+    } finally {
+      setCheckingCoupon(false);
+    }
+  }
+
+  const plan = plans.find((p) => p.id === plan_id);
+  const originalPrice = plan ? plan.price_cents : 0;
+  let discountCents = 0;
+  if (appliedCoupon && originalPrice > 0) {
+    discountCents = Math.min((originalPrice * appliedCoupon.percent) / 100, appliedCoupon.upto);
+  }
+  const finalPrice = originalPrice - discountCents;
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
+
+    const cleanPhone = phone.replace(/\D/g, "");
+    if (cleanPhone.length !== 10) {
+      toast.error("Invalid phone number. Must be exactly 10 digits.");
+      setBusy(false);
+      return;
+    }
+
     const { data: userData } = await supabase.auth.getUser();
     const userId = userData.user?.id ?? null;
-    const plan = plans.find((p) => p.id === plan_id);
     const expires_at = plan
       ? new Date(Date.now() + plan.duration_days * 86400000).toISOString().slice(0, 10)
       : null;
     const { error, data } = await supabase
       .from("members")
-      .insert({ full_name, phone, email: email || null, plan_id: plan_id || null, expires_at, created_by: userId })
+      .insert({
+        full_name,
+        phone: cleanPhone,
+        email: email || null,
+        plan_id: plan_id || null,
+        expires_at,
+        created_by: userId,
+        coupon_code: appliedCoupon ? appliedCoupon.code : null,
+        coupon_discount_cents: discountCents,
+      })
       .select()
       .single();
     if (error) { toast.error(error.message); setBusy(false); return; }
@@ -326,15 +391,16 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
     }
 
     if (plan && data) {
-      const total = plan.price_cents;
       // Auto-generate PAID invoice since payment was received offline during sign-up
       const { data: invData, error: invErr } = await supabase
         .from("invoices")
         .insert({
           member_id: data.id,
           plan_id: plan.id,
-          amount_cents: total,
-          total_cents: total,
+          amount_cents: originalPrice,
+          coupon_code: appliedCoupon ? appliedCoupon.code : null,
+          coupon_discount_cents: discountCents,
+          total_cents: finalPrice,
           status: "paid",
           paid_at: new Date().toISOString(),
           due_date: null,
@@ -349,7 +415,7 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
         // Auto-generate payment record to track financial inflow in billing tab
         const { error: payErr } = await supabase.from("payments").insert({
           invoice_id: invData.id,
-          amount_cents: total,
+          amount_cents: finalPrice,
           method: paymentMethod,
           reference: "Paid on signup",
           recorded_by: userId,
@@ -363,7 +429,7 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
               to: email,
               name: full_name,
               invoiceNumber: invData.invoice_number,
-              amount: new Intl.NumberFormat(undefined, { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(total / 100),
+              amount: new Intl.NumberFormat(undefined, { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(finalPrice / 100),
               method: paymentMethod
             }
           }).catch((err) => {
@@ -386,7 +452,7 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
         <div><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
         <div>
           <Label>Plan</Label>
-          <Select value={plan_id} onValueChange={setPlanId}>
+          <Select value={plan_id} onValueChange={(val) => { setPlanId(val); setAppliedCoupon(null); }}>
             <SelectTrigger><SelectValue placeholder="Select a plan" /></SelectTrigger>
             <SelectContent>
               {plans.length === 0 ? (
@@ -404,6 +470,32 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
           )}
         </div>
         <div>
+          <Label>Coupon Code (Optional)</Label>
+          <div className="flex gap-2 mt-1">
+            <Input
+              value={couponCode}
+              onChange={(e) => setCouponCode(e.target.value)}
+              placeholder="e.g. WELCOME10"
+              disabled={busy || checkingCoupon}
+              className="uppercase font-mono"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={applyCoupon}
+              disabled={busy || checkingCoupon || !couponCode}
+              className="shrink-0"
+            >
+              {checkingCoupon ? "Applying..." : "Apply"}
+            </Button>
+          </div>
+          {appliedCoupon && (
+            <p className="mt-1 text-xs text-emerald-400 font-medium">
+              Coupon applied! {appliedCoupon.percent}% off (max Rs {appliedCoupon.upto / 100})
+            </p>
+          )}
+        </div>
+        <div>
           <Label>Payment Method</Label>
           <Select value={paymentMethod} onValueChange={setPaymentMethod}>
             <SelectTrigger><SelectValue placeholder="Select payment method" /></SelectTrigger>
@@ -414,6 +506,26 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
             </SelectContent>
           </Select>
         </div>
+
+        {plan && (
+          <div className="rounded-xl bg-muted/30 border border-border p-3 space-y-1 text-xs text-muted-foreground">
+            <div className="flex justify-between">
+              <span>Original Price:</span>
+              <span>Rs {(originalPrice / 100).toLocaleString()}</span>
+            </div>
+            {discountCents > 0 && (
+              <div className="flex justify-between text-emerald-400 font-medium">
+                <span>Coupon Discount:</span>
+                <span>- Rs {(discountCents / 100).toLocaleString()}</span>
+              </div>
+            )}
+            <div className="flex justify-between border-t border-border/40 pt-1.5 font-bold text-foreground text-sm">
+              <span>Total Amount:</span>
+              <span className="text-primary">Rs {(finalPrice / 100).toLocaleString()}</span>
+            </div>
+          </div>
+        )}
+
         <DialogFooter>
           <Button type="submit" disabled={busy || plans.length === 0} className="gradient-primary text-primary-foreground">
             {busy ? "Saving..." : "Add member"}
@@ -716,6 +828,14 @@ function MemberProfileDialog({
               <span className="text-xs uppercase text-muted-foreground">Valid Until</span>
               <p className="text-sm font-medium">{member.expires_at ?? "—"}</p>
             </div>
+            {member.coupon_code && (
+              <div>
+                <span className="text-xs uppercase text-muted-foreground">Promo Coupon</span>
+                <p className="text-sm font-semibold text-primary">
+                  {member.coupon_code} (-Rs {((member.coupon_discount_cents ?? 0) / 100).toLocaleString()})
+                </p>
+              </div>
+            )}
             <div>
               <span className="text-xs uppercase text-muted-foreground">Gender</span>
               <p className="text-sm font-medium capitalize">{member.gender ?? "—"}</p>
@@ -854,11 +974,18 @@ function EditMemberDialog({ member, plans, onClose }: { member: Member; plans: P
     e.preventDefault();
     setBusy(true);
 
+    const cleanPhone = phone.replace(/\D/g, "");
+    if (cleanPhone.length !== 10) {
+      toast.error("Invalid phone number. Must be exactly 10 digits.");
+      setBusy(false);
+      return;
+    }
+
     const { error } = await supabase
       .from("members")
       .update({
         full_name: fullName.trim(),
-        phone: phone.trim(),
+        phone: cleanPhone,
         email: email.trim() || null,
         gender,
         date_of_birth: dob || null,

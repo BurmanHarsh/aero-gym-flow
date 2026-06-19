@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { sendRefundEmailDirect } from "./email.functions";
 
 const stripeModeSchema = z.enum(["card", "upi"]);
 
@@ -140,79 +141,142 @@ export const confirmStripeCheckoutSession = createServerFn({ method: "POST" })
     return { paid: true, invoiceId };
   });
 
-  export const revertStripePayment = createServerFn({ method: "POST" })
-    .middleware([requireSupabaseAuth])
-    .inputValidator((d: { paymentId: string }) => z.object({ paymentId: z.string().min(1) }).parse(d))
-    .handler(async ({ context, data }) => {
-      const { supabase, userId } = context;
+export const revertStripePayment = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { paymentId: string }) => z.object({ paymentId: z.string().min(1) }).parse(d))
+  .handler(async ({ context, data }) => {
+    const { supabase, userId } = context;
 
-      // Check admin role
-      const { data: roleRows } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId)
-        .eq("role", "admin");
-      if (!roleRows || roleRows.length === 0) {
-        throw new Error("Insufficient permissions: admin required to revert payments");
-      }
+    // Check admin role
+    const { data: roleRows } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("role", "admin");
+    if (!roleRows || roleRows.length === 0) {
+      throw new Error("Insufficient permissions: admin required to revert payments");
+    }
 
-      const { data: payment, error: pErr } = await supabase
-        .from("payments")
-        .select("id, invoice_id, amount_cents, method, reference")
-        .eq("id", data.paymentId)
-        .maybeSingle();
-      if (pErr) throw new Error(pErr.message);
-      if (!payment) throw new Error("Payment not found");
+    const { data: payment, error: pErr } = await supabase
+      .from("payments")
+      .select("id, invoice_id, amount_cents, method, reference")
+      .eq("id", data.paymentId)
+      .maybeSingle();
+    if (pErr) throw new Error(pErr.message);
+    if (!payment) throw new Error("Payment not found");
 
-      const ref: string = payment.reference ?? "";
+    if (payment.amount_cents <= 0) {
+      throw new Error("Cannot revert a negative payment or refund");
+    }
 
-      // If Stripe payment, attempt automatic refund and record it
-      if (ref.startsWith("stripe:")) {
-        const paymentIntent = ref.split(":")[1];
-        if (!paymentIntent) throw new Error("Stripe payment intent missing from reference");
+    // Check if this payment has already been reverted
+    const { data: existingRevert } = await supabase
+      .from("payments")
+      .select("id")
+      .or(`reference.eq.revert:${payment.id},reference.ilike.%revert:${payment.id}%`)
+      .maybeSingle();
 
-        const params = new URLSearchParams();
-        params.append("payment_intent", paymentIntent);
+    if (existingRevert) {
+      throw new Error("This payment has already been reverted");
+    }
 
-        const refund = await stripeRequest("refunds", {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: params,
-        });
+    // Fetch invoice details and associated member's details
+    const { data: invoice, error: invFetchErr } = await supabase
+      .from("invoices")
+      .select("invoice_number, member_id, member:members(full_name, email)")
+      .eq("id", payment.invoice_id)
+      .maybeSingle();
 
-        const { error: insertErr } = await supabase.from("payments").insert({
-          invoice_id: payment.invoice_id,
-          amount_cents: -(payment.amount_cents ?? 0),
-          method: "refund",
-          reference: `stripe_refund:${refund.id}`,
-          recorded_by: userId,
-        });
-        if (insertErr) throw new Error(insertErr.message);
+    if (invFetchErr || !invoice) throw new Error("Invoice not found or could not be loaded");
+    const member = Array.isArray(invoice.member) ? invoice.member[0] : invoice.member;
 
-        const { error: invErr } = await supabase
-          .from("invoices")
-          .update({ status: "pending", paid_at: null })
-          .eq("id", payment.invoice_id);
-        if (invErr) throw new Error(invErr.message);
+    const ref: string = payment.reference ?? "";
 
-        return { refunded: true, refundId: refund.id };
-      }
+    // If Stripe payment, attempt automatic refund and record it
+    if (ref.startsWith("stripe:")) {
+      const paymentIntent = ref.split(":")[1];
+      if (!paymentIntent) throw new Error("Stripe payment intent missing from reference");
 
-      // Non-Stripe: insert a negative payment record and mark invoice pending
+      const params = new URLSearchParams();
+      params.append("payment_intent", paymentIntent);
+
+      const refund = await stripeRequest("refunds", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: params,
+      });
+
       const { error: insertErr } = await supabase.from("payments").insert({
         invoice_id: payment.invoice_id,
         amount_cents: -(payment.amount_cents ?? 0),
-        method: `revert:${payment.method}`,
-        reference: `revert:${payment.id}`,
+        method: "refund",
+        reference: `stripe_refund:${refund.id} · revert:${payment.id}`,
         recorded_by: userId,
       });
       if (insertErr) throw new Error(insertErr.message);
 
-      const { error: invErr2 } = await supabase
+      const { error: invErr } = await supabase
         .from("invoices")
-        .update({ status: "pending", paid_at: null })
+        .update({ status: "refunded", paid_at: null })
         .eq("id", payment.invoice_id);
-      if (invErr2) throw new Error(invErr2.message);
+      if (invErr) throw new Error(invErr.message);
 
-      return { refunded: false, revertedPaymentId: payment.id };
+      // Cancel the membership
+      if (invoice.member_id) {
+        const { error: memErr } = await supabase
+          .from("members")
+          .update({ status: "cancelled" })
+          .eq("id", invoice.member_id);
+        if (memErr) throw new Error(memErr.message);
+      }
+
+      // Send refund email
+      if (member?.email) {
+        await sendRefundEmailDirect(
+          member.email,
+          member.full_name,
+          invoice.invoice_number,
+          new Intl.NumberFormat(undefined, { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(payment.amount_cents / 100)
+        ).catch((err) => console.error("Refund email failed:", err));
+      }
+
+      return { refunded: true, refundId: refund.id };
+    }
+
+    // Non-Stripe: insert a negative payment record and mark invoice refunded
+    const { error: insertErr } = await supabase.from("payments").insert({
+      invoice_id: payment.invoice_id,
+      amount_cents: -(payment.amount_cents ?? 0),
+      method: `revert:${payment.method}`,
+      reference: `revert:${payment.id}`,
+      recorded_by: userId,
     });
+    if (insertErr) throw new Error(insertErr.message);
+
+    const { error: invErr2 } = await supabase
+      .from("invoices")
+      .update({ status: "refunded", paid_at: null })
+      .eq("id", payment.invoice_id);
+    if (invErr2) throw new Error(invErr2.message);
+
+    // Cancel the membership
+    if (invoice.member_id) {
+      const { error: memErr } = await supabase
+        .from("members")
+        .update({ status: "cancelled" })
+        .eq("id", invoice.member_id);
+      if (memErr) throw new Error(memErr.message);
+    }
+
+    // Send refund email
+    if (member?.email) {
+      await sendRefundEmailDirect(
+        member.email,
+        member.full_name,
+        invoice.invoice_number,
+        new Intl.NumberFormat(undefined, { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(payment.amount_cents / 100)
+      ).catch((err) => console.error("Refund email failed:", err));
+    }
+
+    return { refunded: false, revertedPaymentId: payment.id };
+  });

@@ -22,6 +22,7 @@ import {
   X,
   Plus,
   Award,
+  Percent,
 } from "lucide-react";
 import { useState, type ReactNode, useEffect, useRef } from "react";
 import { useCurrentUser } from "@/hooks/use-current-user";
@@ -47,6 +48,7 @@ const PRIMARY: NavItem[] = [
 const ADMIN: NavItem[] = [
   { to: "/employees", label: "Employees", icon: UsersRound, adminOnly: true },
   { to: "/expenses", label: "Expenses", icon: Wallet, adminOnly: true },
+  { to: "/coupons", label: "Coupons", icon: Percent, adminOnly: true },
   { to: "/audit", label: "Audit logs", icon: ShieldCheck, adminOnly: true },
 ];
 

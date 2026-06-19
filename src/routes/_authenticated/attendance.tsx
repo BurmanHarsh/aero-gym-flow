@@ -214,7 +214,33 @@ function AttendancePage() {
     loadFeed();
   }
 
+  const isMyCheckedIn = myLatestRecord && !myLatestRecord.check_out_at;
 
+  async function handleSelfCheckInOut() {
+    if (!myMember) {
+      toast.error("Your account is not linked to a member record. Please add yourself as a member first.");
+      return;
+    }
+    if (isMyCheckedIn) {
+      await checkOut(myLatestRecord.id, myMember.id);
+      const { data: attData } = await supabase
+        .from("attendance_records")
+        .select("*, member:members(full_name, member_code)")
+        .eq("member_id", myMember.id)
+        .order("check_in_at", { ascending: false })
+        .limit(1);
+      setMyLatestRecord((attData?.[0] ?? null) as Record_ | null);
+    } else {
+      await checkIn(myMember.id, "manual");
+      const { data: attData } = await supabase
+        .from("attendance_records")
+        .select("*, member:members(full_name, member_code)")
+        .eq("member_id", myMember.id)
+        .order("check_in_at", { ascending: false })
+        .limit(1);
+      setMyLatestRecord((attData?.[0] ?? null) as Record_ | null);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -277,7 +303,17 @@ function AttendancePage() {
               )}
             </div>
             <div className="mt-4 grid grid-cols-2 gap-2">
-              <Button variant="outline" onClick={() => toast.info("Point any QR at the kiosk — auto-scanned via webhook")}><QrCode className="mr-2 h-4 w-4" /> QR Mode</Button>
+              <Button 
+                variant="outline" 
+                onClick={handleSelfCheckInOut}
+                className={isMyCheckedIn ? "border-destructive/30 text-destructive hover:bg-destructive/15 hover:text-destructive" : "border-primary/30 text-primary hover:bg-primary/15 hover:text-primary"}
+              >
+                {isMyCheckedIn ? (
+                  <><CheckOutIcon className="mr-2 h-4 w-4" /> Check-out Self</>
+                ) : (
+                  <><ArrowRight className="mr-2 h-4 w-4" /> Check-in Self</>
+                )}
+              </Button>
               <Button variant="outline" onClick={() => setQrModalOpen(true)}><QrCode className="mr-2 h-4 w-4" /> Get Wall QR</Button>
             </div>
           </div>

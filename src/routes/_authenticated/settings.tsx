@@ -164,7 +164,14 @@ function AccountTab({ me }: { me: ReturnType<typeof useCurrentUser> }) {
   async function saveProfile(e: React.FormEvent) {
     e.preventDefault();
     if (!me.user) return;
-    const { error } = await supabase.from("profiles").update({ full_name: name, phone }).eq("id", me.user.id);
+
+    const cleanPhone = phone.replace(/\D/g, "");
+    if (cleanPhone.length !== 10) {
+      toast.error("Invalid phone number. Must be exactly 10 digits.");
+      return;
+    }
+
+    const { error } = await supabase.from("profiles").update({ full_name: name, phone: cleanPhone }).eq("id", me.user.id);
     if (error) return toast.error(error.message);
     toast.success("Profile updated");
   }
@@ -181,72 +188,8 @@ function AccountTab({ me }: { me: ReturnType<typeof useCurrentUser> }) {
         <h2 className="text-base font-semibold">Profile</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           {me.email} · <span className="capitalize">{me.isAdmin ? "Admin" : "Front desk"}</span>
-          {" · "}
-          <label htmlFor="avatar-upload" className="cursor-pointer text-primary hover:underline">
-            {avatar ? "Change photo" : "Upload photo"}
-          </label>
-          <input id="avatar-upload" type="file" accept="image/*" onChange={handlePhotoUpload} disabled={uploading} className="hidden" />
-          {uploading && <span className="ml-2 text-xs text-muted-foreground animate-pulse">Uploading...</span>}
         </p>
       </div>
-
-      {avatar && !imageError ? (
-        <div className="flex items-center gap-3 border-b border-border/40 pb-4">
-          <img
-            src={avatar}
-            alt={name}
-            onError={() => setImageError(true)}
-            className="h-14 w-14 rounded-xl object-cover border border-border"
-          />
-          <button
-            type="button"
-            onClick={async () => {
-              if (!me.user) return;
-              const { error } = await supabase.from("profiles").update({ avatar_url: null }).eq("id", me.user.id);
-              if (error) return toast.error(error.message);
-              
-              // Bidirectional sync: Also remove from members table if a member with the same email exists
-              if (me.email) {
-                await supabase.from("members").update({ photo_url: null }).eq("email", me.email);
-              }
-
-              setAvatar("");
-              toast.success("Profile photo removed");
-              if (typeof window !== "undefined") window.location.reload();
-            }}
-            className="text-xs text-destructive hover:underline"
-          >
-            Remove photo
-          </button>
-        </div>
-      ) : avatar ? (
-        <div className="flex items-center gap-3 border-b border-border/40 pb-4">
-          <div className="grid h-14 w-14 place-items-center rounded-xl gradient-primary text-lg font-semibold text-primary-foreground">
-            {(name || me.email || "U").slice(0, 1).toUpperCase()}
-          </div>
-          <button
-            type="button"
-            onClick={async () => {
-              if (!me.user) return;
-              const { error } = await supabase.from("profiles").update({ avatar_url: null }).eq("id", me.user.id);
-              if (error) return toast.error(error.message);
-              
-              // Bidirectional sync: Also remove from members table if a member with the same email exists
-              if (me.email) {
-                await supabase.from("members").update({ photo_url: null }).eq("email", me.email);
-              }
-
-              setAvatar("");
-              setImageError(false);
-              toast.success("Profile photo removed");
-              if (typeof window !== "undefined") window.location.reload();
-            }}
-            className="text-xs text-destructive hover:underline"
-          >
-            Remove broken photo
-          </button>
-        </div>
-      ) : null}
 
       <form onSubmit={saveProfile} className="space-y-3">
         <div><Label>Full name</Label><Input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" suppressHydrationWarning /></div>

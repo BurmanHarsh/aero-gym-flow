@@ -26,7 +26,7 @@ import {
   Banknote,
   Smartphone,
   ShieldAlert,
-  Download,
+  FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -145,38 +145,98 @@ function ExpensesPage() {
     utilities: rows.filter((r) => r.category === "Utilities").reduce((s, r) => s + r.amount_cents, 0),
   };
 
-  function handleExportCSV() {
+  function handleExportPDF() {
     if (filtered.length === 0) {
       toast.error("No expenses to export");
       return;
     }
-    const dataToExport = filtered.map(r => ({
-      "Title": r.title,
-      "Category": r.category,
-      "Amount (INR)": r.amount_cents / 100,
-      "Date": new Date(r.date).toLocaleDateString(),
-      "Payment Method": r.payment_method,
-      "Description": r.description ?? ""
-    }));
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      toast.error("Popup blocked! Please allow popups to export PDF.");
+      return;
+    }
 
-    const headers = Object.keys(dataToExport[0]).join(",");
-    const csvRows = dataToExport.map(row => 
-      Object.values(row).map(val => {
-        const str = String(val).replace(/"/g, '""');
-        return str.includes(",") || str.includes("\n") ? `"${str}"` : str;
-      }).join(",")
-    );
-    const csvContent = "\uFEFF" + [headers, ...csvRows].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `expenses_export_${new Date().toISOString().slice(0,10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    toast.success("CSV export downloaded");
+    const htmlContent = `
+      <html>
+        <head>
+          <title>Expenses Report - Tank by Tapan</title>
+          <style>
+            body {
+              font-family: ui-sans-serif, system-ui, sans-serif;
+              background-color: #ffffff;
+              color: #111827;
+              padding: 24px;
+            }
+            h1 {
+              font-size: 24px;
+              margin-bottom: 4px;
+              color: #14b8a6;
+            }
+            .subtitle {
+              font-size: 14px;
+              color: #6b7280;
+              margin-bottom: 24px;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 16px;
+            }
+            th, td {
+              border-bottom: 1px solid #e5e7eb;
+              padding: 12px 8px;
+              text-align: left;
+              font-size: 13px;
+            }
+            th {
+              background-color: #f9fafb;
+              font-weight: 600;
+              color: #374151;
+            }
+            @media print {
+              body { padding: 0; }
+              button { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <h1>Tank by Tapan</h1>
+          <div class="subtitle">Expenses Report · Generated on ${new Date().toLocaleDateString()}</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Category</th>
+                <th>Amount (INR)</th>
+                <th>Date</th>
+                <th>Payment Method</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filtered.map(r => `
+                <tr>
+                  <td>${r.title}</td>
+                  <td>${r.category}</td>
+                  <td>Rs ${((r.amount_cents) / 100).toLocaleString()}</td>
+                  <td>${new Date(r.date).toLocaleDateString()}</td>
+                  <td>${r.payment_method}</td>
+                  <td>${r.description ?? "—"}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `;
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
   }
 
   return (
@@ -187,8 +247,8 @@ function ExpensesPage() {
           <p className="text-sm text-muted-foreground">Track operating expenses, rent, payouts, and utility bills.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={handleExportCSV} variant="outline">
-            <Download className="mr-1.5 h-4 w-4" /> Export CSV
+          <Button onClick={handleExportPDF} variant="outline">
+            <FileText className="mr-1.5 h-4 w-4" /> Export PDF
           </Button>
           <Dialog open={addOpen} onOpenChange={setAddOpen}>
             <DialogTrigger asChild>

@@ -91,6 +91,8 @@ export type Database = {
       invoices: {
         Row: {
           amount_cents: number
+          coupon_code: string | null
+          coupon_discount_cents: number
           created_at: string
           created_by: string | null
           due_date: string | null
@@ -108,6 +110,8 @@ export type Database = {
         }
         Insert: {
           amount_cents: number
+          coupon_code?: string | null
+          coupon_discount_cents?: number
           created_at?: string
           created_by?: string | null
           due_date?: string | null
@@ -125,6 +129,8 @@ export type Database = {
         }
         Update: {
           amount_cents?: number
+          coupon_code?: string | null
+          coupon_discount_cents?: number
           created_at?: string
           created_by?: string | null
           due_date?: string | null
@@ -216,6 +222,8 @@ export type Database = {
       members: {
         Row: {
           address: string | null
+          coupon_code: string | null
+          coupon_discount_cents: number | null
           created_at: string
           created_by: string | null
           date_of_birth: string | null
@@ -237,6 +245,8 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          coupon_code?: string | null
+          coupon_discount_cents?: number | null
           created_at?: string
           created_by?: string | null
           date_of_birth?: string | null
@@ -258,6 +268,8 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          coupon_code?: string | null
+          coupon_discount_cents?: number | null
           created_at?: string
           created_by?: string | null
           date_of_birth?: string | null
@@ -611,6 +623,8 @@ export type Database = {
           sold_by: string | null
           sold_at: string
           payment_method: string
+          coupon_code: string | null
+          coupon_discount_cents: number
         }
         Insert: {
           id?: string
@@ -622,6 +636,8 @@ export type Database = {
           sold_by?: string | null
           sold_at?: string
           payment_method?: string
+          coupon_code?: string | null
+          coupon_discount_cents?: number
         }
         Update: {
           id?: string
@@ -633,6 +649,8 @@ export type Database = {
           sold_by?: string | null
           sold_at?: string
           payment_method?: string
+          coupon_code?: string | null
+          coupon_discount_cents?: number
         }
         Relationships: [
           {
@@ -650,6 +668,36 @@ export type Database = {
             referencedColumns: ["id"]
           }
         ]
+      }
+      coupons: {
+        Row: {
+          id: string
+          code: string
+          discount_percent: number
+          discount_upto_cents: number
+          active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          code: string
+          discount_percent: number
+          discount_upto_cents: number
+          active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          code?: string
+          discount_percent?: number
+          discount_upto_cents?: number
+          active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
     }
     Views: {
