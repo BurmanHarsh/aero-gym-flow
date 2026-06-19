@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button";
 import { MapPin, MapPinOff, CheckCircle2, AlertCircle, Loader2, QrCode, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 
-// Gym target coordinates (Kolkata default coordinates)
-const GYM_LAT = 22.5726;
-const GYM_LON = 88.3639;
+// Gym target coordinates (TANK Strength & Conditioning Club)
+const GYM_LAT = 22.8465057;
+const GYM_LON = 88.3686884;
 const MAX_DISTANCE_METERS = 50;
 
 const searchSchema = z.object({
@@ -48,7 +48,6 @@ function ScanCheckinPage() {
   // Location states
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [distance, setDistance] = useState<number | null>(null);
-  const [bypassGeofence, setBypassGeofence] = useState(false);
 
   // Member info
   const [member, setMember] = useState<{ id: string; full_name: string; member_code: string } | null>(null);
@@ -95,7 +94,7 @@ function ScanCheckinPage() {
         const dist = getDistance(lat, lon, GYM_LAT, GYM_LON);
         setDistance(dist);
 
-        if (dist > MAX_DISTANCE_METERS && !bypassGeofence) {
+        if (dist > MAX_DISTANCE_METERS) {
           setStatus("error");
           setErrorMsg(`You are too far from the gym to check in. (Distance: ${Math.round(dist)} meters, Max limit: ${MAX_DISTANCE_METERS}m)`);
           setLoading(false);
@@ -106,25 +105,14 @@ function ScanCheckinPage() {
       },
       (error) => {
         console.error("Location error:", error);
-        if (bypassGeofence) {
-          processCheckin();
-        } else {
-          setStatus("error");
-          setErrorMsg("Failed to retrieve your location. Please grant location access to complete check-in.");
-          setLoading(false);
-        }
+        setStatus("error");
+        setErrorMsg("Failed to retrieve your location. Please grant location access to complete check-in.");
+        setLoading(false);
       },
       { enableHighAccuracy: true, timeout: 8000 }
     );
   }
 
-  // Trigger retry / bypass for dev mode testing
-  function handleBypassDev() {
-    setBypassGeofence(true);
-    toast.info("Dev Mode: Bypassing geofencing proximity checks");
-    setStatus("processing");
-    processCheckin();
-  }
 
   async function processCheckin() {
     setStatus("processing");
@@ -294,12 +282,7 @@ function ScanCheckinPage() {
                 Retry Location Verification
               </Button>
               
-              {/* Dev Bypass Helper */}
-              {(!coords || distance === null || distance > MAX_DISTANCE_METERS) && (
-                <Button onClick={handleBypassDev} variant="outline" className="w-full text-xs border-dashed">
-                  <MapPinOff className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" /> Simulate / Bypass Proximity (Dev Mode)
-                </Button>
-              )}
+
             </>
           )}
 

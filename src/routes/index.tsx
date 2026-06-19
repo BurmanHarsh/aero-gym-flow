@@ -76,19 +76,15 @@ function Landing() {
   const faqs = [
     {
       q: "What are the gym operating hours?",
-      a: "Tank by Tapan is open 24/7 for all premium plan holders. Staffed hours for personal training and general guidance are from 6:00 AM to 10:00 PM, Monday through Saturday, and 8:00 AM to 6:00 PM on Sundays."
+      a: "Monday to Saturday: Morning 5:00 AM to 10:00 AM, and Evening 4:30 PM to 9:30 PM. (Closed on Sundays)"
     },
     {
       q: "Do you offer personal training services?",
-      a: "Yes! We have certified elite personal trainers specializing in strength coaching, weight loss, athletic conditioning, and post-injury recovery. You can book individual or group sessions directly at the front desk."
+      a: "Yes, we offer personal training & we have transformation packages as per your goal."
     },
     {
-      q: "Can I pause or cancel my membership plan?",
-      a: "Absolutely. Standard monthly and annual memberships can be paused for up to 30 days per calendar year. Cancellations can be requested by visiting the front desk or sending an email 5 days prior to your billing cycle."
-    },
-    {
-      q: "Are lockboxes and shower facilities included?",
-      a: "Yes, all active members have full access to our premium locker rooms, secure keyless locker systems, hot shower stalls, steam rooms, and complimentary fresh towels."
+      q: "Can I pause, cancel, or transfer my membership?",
+      a: "No, you cannot pause, cancel, or transfer your membership."
     }
   ];
 
@@ -150,19 +146,19 @@ function Landing() {
         </div>
       </section>
 
-      {/* Stats Counter Section */}
+      {/* Value Proposition Grid */}
       <section className="relative z-10 mx-auto max-w-5xl px-6 py-12">
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4 rounded-2xl border border-border bg-card/40 p-6 backdrop-blur-md">
           {[
-            { value: "1,200+", label: "Active Members", desc: "Training daily" },
-            { value: "15+", label: "Master Coaches", desc: "For expert training" },
-            { value: "24/7", label: "Secure Access", desc: "Train on your schedule" },
-            { value: "98%", label: "Satisfaction", desc: "Top-tier rating" }
+            { value: "Expert Coaching", label: "1-on-1 Guidance", desc: "Every workout supervised" },
+            { value: "Strength Focused", label: "Premium Equipment", desc: "Built for serious training" },
+            { value: "Community Driven", label: "Supportive Environment", desc: "Train with like-minded people" },
+            { value: "Goal Oriented", label: "Track Progress", desc: "See measurable results" }
           ].map((stat, i) => (
             <div key={i} className="text-center group p-2">
-              <div className="text-3xl font-bold text-foreground group-hover:scale-105 transition-transform duration-300">{stat.value}</div>
-              <div className="text-sm font-semibold text-primary mt-1">{stat.label}</div>
-              <div className="text-xs text-muted-foreground mt-0.5">{stat.desc}</div>
+              <div className="text-base md:text-lg font-bold text-foreground group-hover:scale-105 transition-transform duration-300">{stat.value}</div>
+              <div className="text-xs md:text-sm font-semibold text-primary mt-1.5">{stat.label}</div>
+              <div className="text-[10px] md:text-xs text-muted-foreground mt-1 leading-relaxed">{stat.desc}</div>
             </div>
           ))}
         </div>

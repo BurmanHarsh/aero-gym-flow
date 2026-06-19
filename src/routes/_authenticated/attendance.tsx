@@ -206,6 +206,10 @@ function AttendancePage() {
     const { error } = await supabase.from("attendance_records").update({ check_out_at: new Date().toISOString() }).eq("id", id);
     if (error) return toast.error(error.message);
     toast.success("Checked out");
+    if (isStaff) {
+      setQ("");
+      setResults([]);
+    }
     refreshAttendanceStats();
     loadFeed();
   }
@@ -238,18 +242,34 @@ function AttendancePage() {
               <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Scan QR or search member…" className="pl-9" autoFocus />
             </div>
             <div className="mt-3 space-y-2">
-              {results.map((m) => (
-                <div key={m.id} className="flex items-center gap-3 rounded-xl border border-border bg-background/40 p-3">
-                  <div className="grid h-9 w-9 place-items-center rounded-lg gradient-primary text-xs font-semibold text-primary-foreground">{m.full_name.slice(0, 1)}</div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium">{m.full_name}</div>
-                    <div className="text-[11px] text-muted-foreground">{m.member_code}{isStaff ? ` · ${m.phone}` : ""}</div>
+              {results.map((m) => {
+                const activeRecord = feed.find((r) => r.member_id === m.id && !r.check_out_at);
+                return (
+                  <div key={m.id} className="flex items-center gap-3 rounded-xl border border-border bg-background/40 p-3">
+                    <div className="grid h-9 w-9 place-items-center rounded-lg gradient-primary text-xs font-semibold text-primary-foreground">{m.full_name.slice(0, 1)}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <div className="truncate text-sm font-medium">{m.full_name}</div>
+                        {activeRecord && (
+                          <span className="rounded-full bg-success/15 px-1.5 py-0.5 text-[9px] font-semibold text-success capitalize">
+                            Checked In
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">{m.member_code}{isStaff ? ` · ${m.phone}` : ""}</div>
+                    </div>
+                    {activeRecord ? (
+                      <Button size="sm" variant="destructive" onClick={() => checkOut(activeRecord.id, m.id)}>
+                        Check-out <CheckOutIcon className="ml-1 h-3 w-3" />
+                      </Button>
+                    ) : (
+                      <Button size="sm" onClick={() => checkIn(m.id, "manual")} className="gradient-primary text-primary-foreground">
+                        Check-in <ArrowRight className="ml-1 h-3 w-3" />
+                      </Button>
+                    )}
                   </div>
-                  <Button size="sm" onClick={() => checkIn(m.id, "manual")} className="gradient-primary text-primary-foreground">
-                    Check-in <ArrowRight className="ml-1 h-3 w-3" />
-                  </Button>
-                </div>
-              ))}
+                );
+              })}
               {searching && <p className="px-1 text-xs text-muted-foreground">Searching members...</p>}
               {searchError && <p className="px-1 text-xs text-destructive">{searchError}</p>}
               {q && !searching && !searchError && results.length === 0 && (
@@ -339,9 +359,20 @@ function AttendancePage() {
                 <div key={r.id} className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-accent/40">
                   <span className={`h-2 w-2 rounded-full ${out ? "bg-muted-foreground" : "bg-success animate-pulse"}`} />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium">{r.member?.full_name ?? "Unknown"}</div>
-                    <div className="text-[11px] text-muted-foreground">
-                      {r.member?.member_code} · {r.method} · in {new Date(r.check_in_at).toLocaleTimeString()}{out && ` · out ${new Date(r.check_out_at!).toLocaleTimeString()}`}
+                    <div className="flex items-center gap-2">
+                      <div className="truncate text-sm font-medium">{r.member?.full_name ?? "Unknown"}</div>
+                      {r.method === "qr" ? (
+                        <span className="inline-flex items-center gap-0.5 rounded-full bg-teal-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-teal-400 border border-teal-500/20">
+                          <QrCode className="h-2.5 w-2.5" /> QR Code
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-amber-400 border border-amber-500/20">
+                          Manual
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">
+                      {r.member?.member_code} · Checked in at {new Date(r.check_in_at).toLocaleTimeString()}{out && ` · Out at ${new Date(r.check_out_at!).toLocaleTimeString()}`}
                     </div>
                   </div>
                   {!out && isStaff && <Button size="sm" variant="ghost" onClick={() => checkOut(r.id, r.member_id)}><CheckOutIcon className="h-3.5 w-3.5" /></Button>}
