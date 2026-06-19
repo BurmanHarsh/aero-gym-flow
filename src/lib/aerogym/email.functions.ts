@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import PDFDocument from "pdfkit";
 
 async function send(
   from: string,
@@ -95,13 +94,14 @@ export const sendWelcomeEmail = createServerFn({ method: "POST" })
   });
 
 // Helper function to generate PDF receipt and return it as base64 string
-export async function generatePdfInvoiceBase64(data: {
+async function generatePdfInvoiceBase64(data: {
   name: string;
   email: string;
   invoiceNumber: string;
   amount: string;
   method: string;
 }): Promise<string> {
+  const PDFDocument = (await import("pdfkit")).default;
   return new Promise((resolve, reject) => {
     try {
       const doc = new PDFDocument({ size: "A4", margin: 50 });
