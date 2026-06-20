@@ -8,9 +8,9 @@ import { MapPin, MapPinOff, CheckCircle2, AlertCircle, Loader2, QrCode, ArrowLef
 import { toast } from "sonner";
 
 // Gym target coordinates (TANK Strength & Conditioning Club)
-const GYM_LAT = 22.8465057;
-const GYM_LON = 88.3686884;
-const MAX_DISTANCE_METERS = 50;
+const GYM_LAT = 27.7914659;
+const GYM_LON = 78.8333964;
+const MAX_DISTANCE_METERS = 100;
 
 const searchSchema = z.object({
   key: z.string().optional(),
