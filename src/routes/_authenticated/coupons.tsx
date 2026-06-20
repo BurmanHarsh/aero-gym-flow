@@ -27,6 +27,8 @@ interface Coupon {
   discount_upto_cents: number;
   active: boolean;
   created_at: string;
+  max_uses: number | null;
+  used_count: number;
 }
 
 function CouponsPage() {
@@ -40,12 +42,13 @@ function CouponsPage() {
   const [code, setCode] = useState("");
   const [discountPercent, setDiscountPercent] = useState("");
   const [discountUpto, setDiscountUpto] = useState("");
+  const [maxUses, setMaxUses] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function load() {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("coupons")
+    const { data, error } = await (supabase
+      .from("coupons") as any)
       .select("*")
       .order("created_at", { ascending: false });
 
@@ -85,21 +88,41 @@ function CouponsPage() {
     setBusy(true);
     const formattedCode = code.toUpperCase().replace(/\s+/g, "");
 
-    const { error } = await supabase.from("coupons").insert({
-      code: formattedCode,
-      discount_percent: percent,
-      discount_upto_cents: uptoCents,
-      active: true,
-    });
+    const { data: createdCoupon, error } = await (supabase
+      .from("coupons") as any)
+      .insert({
+        code: formattedCode,
+        discount_percent: percent,
+        discount_upto_cents: uptoCents,
+        active: true,
+        max_uses: maxUses.trim() ? parseInt(maxUses) : null,
+        used_count: 0,
+      })
+      .select()
+      .single();
 
     if (error) {
       toast.error(error.message);
     } else {
+      // Log audit event
+      await supabase.from("audit_logs").insert({
+        actor_id: me.user?.id ?? null,
+        actor_email: me.user?.email ?? null,
+        action: "COUPON_CREATE",
+        entity_type: "coupons",
+        entity_id: createdCoupon.id,
+        metadata: {
+          code: createdCoupon.code,
+          discount_percent: createdCoupon.discount_percent,
+          discount_upto_cents: createdCoupon.discount_upto_cents
+        }
+      });
       toast.success("Coupon created successfully!");
       setIsAddOpen(false);
       setCode("");
       setDiscountPercent("");
       setDiscountUpto("");
+      setMaxUses("");
       load();
     }
     setBusy(false);
@@ -114,6 +137,15 @@ function CouponsPage() {
     if (error) {
       toast.error(error.message);
     } else {
+      // Log audit event
+      await supabase.from("audit_logs").insert({
+        actor_id: me.user?.id ?? null,
+        actor_email: me.user?.email ?? null,
+        action: coupon.active ? "COUPON_DEACTIVATE" : "COUPON_ACTIVATE",
+        entity_type: "coupons",
+        entity_id: coupon.id,
+        metadata: { code: coupon.code }
+      });
       toast.success(`Coupon ${coupon.code} ${!coupon.active ? "activated" : "deactivated"}`);
       load();
     }
@@ -127,6 +159,15 @@ function CouponsPage() {
     if (error) {
       toast.error(error.message);
     } else {
+      // Log audit event
+      await supabase.from("audit_logs").insert({
+        actor_id: me.user?.id ?? null,
+        actor_email: me.user?.email ?? null,
+        action: "COUPON_DELETE",
+        entity_type: "coupons",
+        entity_id: deletingCoupon.id,
+        metadata: { code: deletingCoupon.code }
+      });
       toast.success("Coupon deleted successfully");
       setDeletingCoupon(null);
       load();
@@ -190,6 +231,18 @@ function CouponsPage() {
                   />
                 </div>
               </div>
+              <div>
+                <Label htmlFor="max-uses">Max Uses (Optional)</Label>
+                <Input
+                  id="max-uses"
+                  type="number"
+                  min="1"
+                  placeholder="e.g. 50 — leave blank for unlimited"
+                  value={maxUses}
+                  onChange={(e) => setMaxUses(e.target.value)}
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">Leave blank for unlimited uses.</p>
+              </div>
               <DialogFooter className="pt-2">
                 <Button type="button" variant="outline" onClick={() => setIsAddOpen(false)} disabled={busy}>
                   Cancel
@@ -234,6 +287,14 @@ function CouponsPage() {
                     </div>
                     <div className="text-xs text-muted-foreground">
                       Up to Rs {(coupon.discount_upto_cents / 100).toLocaleString()}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Used: <span className="font-semibold text-foreground">{coupon.used_count}</span>
+                      {coupon.max_uses != null ? (
+                        <span> / {coupon.max_uses} <span className="text-[10px]">(limit)</span></span>
+                      ) : (
+                        <span className="text-[10px]"> (unlimited)</span>
+                      )}
                     </div>
                   </div>
                 </div>

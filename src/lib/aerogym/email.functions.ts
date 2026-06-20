@@ -319,3 +319,88 @@ export async function sendRefundEmailDirect(to: string, name: string, invoiceNum
     <p>If you have any questions, please contact the front desk.</p>`;
   return send(from, to, `Refund Successful · ${invoiceNumber}`, shell("Refund Successful", body));
 }
+
+export const sendInventorySaleEmail = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: {
+    to: string;
+    name: string;
+    items: { name: string; quantity: number; price: string }[];
+    totalAmount: string;
+    paymentMethod: string;
+    couponCode?: string | null;
+    discountAmount?: string | null;
+  }) =>
+    z.object({
+      to: z.string().email(),
+      name: z.string().min(1),
+      items: z.array(z.object({
+        name: z.string(),
+        quantity: z.number(),
+        price: z.string(),
+      })),
+      totalAmount: z.string(),
+      paymentMethod: z.string(),
+      couponCode: z.string().nullable().optional(),
+      discountAmount: z.string().nullable().optional(),
+    }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const from = "Tank by Tapan Billing <billing@tankbytapan.in>";
+    
+    let itemsHtml = "";
+    data.items.forEach(item => {
+      itemsHtml += `
+        <tr>
+          <td style="padding: 8px 0; border-bottom: 1px solid #1f2747; color:#c9cfe0">${item.name} (x${item.quantity})</td>
+          <td style="padding: 8px 0; border-bottom: 1px solid #1f2747; text-align:right; font-weight:600">${item.price}</td>
+        </tr>
+      `;
+    });
+
+    const couponHtml = data.couponCode
+      ? `
+        <tr>
+          <td style="padding: 8px 0; color:#7b8299">Coupon Code</td>
+          <td style="padding: 8px 0; text-align:right; font-family:monospace; color:#14b8a6">${data.couponCode}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color:#7b8299">Coupon Discount</td>
+          <td style="padding: 8px 0; text-align:right; font-weight:600; color:#10b981">- ${data.discountAmount}</td>
+        </tr>
+      `
+      : "";
+
+    const body = `
+      <p>Hi ${data.name}, thank you for your purchase! We've received your payment.</p>
+      <p>Here are your purchase details:</p>
+      <table style="width:100%; margin-top:16px; border-collapse: collapse; font-size:13px">
+        <thead>
+          <tr style="border-bottom: 2px solid #1f2747">
+            <th style="text-align:left; padding-bottom: 8px; color:#7b8299">Product</th>
+            <th style="text-align:right; padding-bottom: 8px; color:#7b8299">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemsHtml}
+          ${couponHtml}
+          <tr>
+            <td style="padding: 12px 0 8px; font-weight:600; color:#e6e9f2">Total Paid</td>
+            <td style="padding: 12px 0 8px; text-align:right; font-size:16px; font-weight:700; color:#14b8a6">${data.totalAmount}</td>
+          </tr>
+          <tr>
+            <td style="padding: 4px 0; color:#7b8299">Payment Method</td>
+            <td style="padding: 4px 0; text-align:right; text-transform:capitalize">${data.paymentMethod}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="margin-top:20px;">If you have any questions, please contact the front desk.</p>
+    `;
+
+    return send(
+      from,
+      data.to,
+      `Purchase Receipt · ${new Date().toLocaleDateString("en-IN")}`,
+      shell("Receipt for your purchase", body)
+    );
+  });

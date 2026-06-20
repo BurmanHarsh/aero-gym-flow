@@ -147,14 +147,14 @@ export const revertStripePayment = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
 
-    // Check admin role
+    // Check staff permissions (admin or front_desk)
     const { data: roleRows } = await supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", userId)
-      .eq("role", "admin");
+      .in("role", ["admin", "front_desk"]);
     if (!roleRows || roleRows.length === 0) {
-      throw new Error("Insufficient permissions: admin required to revert payments");
+      throw new Error("Insufficient permissions: staff required to revert payments");
     }
 
     const { data: payment, error: pErr } = await supabase
@@ -240,6 +240,23 @@ export const revertStripePayment = createServerFn({ method: "POST" })
         ).catch((err) => console.error("Refund email failed:", err));
       }
 
+      // Log audit event
+      const actorEmail = context.claims?.email ?? null;
+      await supabase.from("audit_logs").insert({
+        actor_id: userId,
+        actor_email: actorEmail,
+        action: "PAYMENT_REVERT",
+        entity_type: "payments",
+        entity_id: payment.id,
+        metadata: {
+          amount_cents: payment.amount_cents,
+          method: payment.method,
+          reference: payment.reference,
+          invoice_id: payment.invoice_id,
+          stripe_refund_id: refund.id
+        }
+      });
+
       return { refunded: true, refundId: refund.id };
     }
 
@@ -277,6 +294,22 @@ export const revertStripePayment = createServerFn({ method: "POST" })
         new Intl.NumberFormat(undefined, { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(payment.amount_cents / 100)
       ).catch((err) => console.error("Refund email failed:", err));
     }
+
+    // Log audit event
+    const actorEmail = context.claims?.email ?? null;
+    await supabase.from("audit_logs").insert({
+      actor_id: userId,
+      actor_email: actorEmail,
+      action: "PAYMENT_REVERT",
+      entity_type: "payments",
+      entity_id: payment.id,
+      metadata: {
+        amount_cents: payment.amount_cents,
+        method: payment.method,
+        reference: payment.reference,
+        invoice_id: payment.invoice_id
+      }
+    });
 
     return { refunded: false, revertedPaymentId: payment.id };
   });

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { getAttendanceTrend, getDashboardStats, getRevenueTrend } from "@/lib/aerogym/analytics.functions";
+import { autoExpireMemberships, sendExpiryReminders } from "@/lib/aerogym/gym.functions";
 import { StatCard } from "@/components/stat-card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -17,6 +18,7 @@ import {
   AlertTriangle,
   Archive,
   Banknote,
+  Calendar,
   CalendarClock,
   ClipboardList,
   Dumbbell,
@@ -33,6 +35,7 @@ import {
   Users,
   Wallet,
   Megaphone,
+  Package,
 } from "lucide-react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
@@ -74,6 +77,7 @@ interface Plan {
   duration_days: number;
   price_cents: number;
   active: boolean;
+  photo_url?: string | null;
 }
 
 function fmtMoney(cents: number) {
@@ -87,7 +91,7 @@ function todayLabel() {
 async function fetchPlans() {
   const { data, error } = await supabase
     .from("membership_plans")
-    .select("id,name,description,duration_days,price_cents,active")
+    .select("id,name,description,duration_days,price_cents,active,photo_url")
     .eq("active", true)
     .order("duration_days", { ascending: true });
 
@@ -99,8 +103,35 @@ function Dashboard() {
   const me = useCurrentUser();
   const stats = useServerFn(getDashboardStats);
   const att = useServerFn(getAttendanceTrend);
+  const expireFn = useServerFn(autoExpireMemberships);
+  const reminderFn = useServerFn(sendExpiryReminders);
   const s = useQuery({ queryKey: ["dashboard-stats"], queryFn: () => stats() });
   const a = useQuery({ queryKey: ["attendance-14"], queryFn: () => att() });
+
+  // Run auto-expiry + reminder emails once per day per browser session
+  useState(() => {
+    if (typeof window === "undefined") return;
+    const today = new Date().toISOString().slice(0, 10);
+    const lastRun = localStorage.getItem("tbt_daily_tasks");
+    if (lastRun === today) return;
+    localStorage.setItem("tbt_daily_tasks", today);
+    // Run silently after a short delay so it doesn't block the dashboard load
+    setTimeout(() => {
+      expireFn().then((res) => {
+        if (res && res.expired > 0) {
+          console.log(`[Auto-Expire] Marked ${res.expired} memberships as expired`);
+        }
+      }).catch(() => {});
+      reminderFn().then((res) => {
+        if (res && res.sent > 0) {
+          console.log(`[Reminders] Sent ${res.sent} expiry reminder emails`);
+        }
+      }).catch(() => {});
+    }, 3000);
+  });
+
+  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
+  const [selectedItem, setSelectedItem] = useState<any | null>(null);
 
   const recentInvoicesQuery = useQuery({
     queryKey: ["recent-invoices"],
@@ -139,11 +170,36 @@ function Dashboard() {
             attendance={attendance}
             recentInvoices={recentInvoicesQuery.data ?? []}
             inflowLoading={recentInvoicesQuery.isLoading}
+            onSelectPlan={setSelectedPlan}
           />
         ) : (
-          <MemberDashboard user={me} />
+          <MemberDashboard
+            user={me}
+            onSelectPlan={setSelectedPlan}
+            onSelectItem={setSelectedItem}
+          />
         )}
       </div>
+
+      {/* Plan Details Dialog */}
+      <Dialog open={!!selectedPlan} onOpenChange={(o) => !o && setSelectedPlan(null)}>
+        {selectedPlan && (
+          <PlanDetailDialog
+            plan={selectedPlan}
+            onClose={() => setSelectedPlan(null)}
+          />
+        )}
+      </Dialog>
+
+      {/* Item Details Dialog */}
+      <Dialog open={!!selectedItem} onOpenChange={(o) => !o && setSelectedItem(null)}>
+        {selectedItem && (
+          <ItemDetailDialog
+            item={selectedItem}
+            onClose={() => setSelectedItem(null)}
+          />
+        )}
+      </Dialog>
     </div>
   );
 }
@@ -194,11 +250,13 @@ function AdminDashboard({
   attendance,
   recentInvoices,
   inflowLoading,
+  onSelectPlan,
 }: {
   stats: DashboardStats | undefined;
   attendance: AttendancePoint[];
   recentInvoices: any[];
   inflowLoading: boolean;
+  onSelectPlan: (plan: Plan) => void;
 }) {
   const me = useCurrentUser();
   const expensesQuery = useQuery({
@@ -282,7 +340,12 @@ function AdminDashboard({
             <Panel>
               <h3 className="mb-4 text-sm font-semibold">Admin controls</h3>
               <div className="space-y-3">
-                <PlanManager plans={plans.data ?? []} loading={plans.isLoading} error={plans.error instanceof Error ? plans.error.message : ""} />
+                <PlanManager
+                  plans={plans.data ?? []}
+                  loading={plans.isLoading}
+                  error={plans.error instanceof Error ? plans.error.message : ""}
+                  onSelectPlan={onSelectPlan}
+                />
                 <BroadcastManager />
                 <ActionLink to="/employees" icon={ShieldCheck} label="Manage employees" hint="Roles and access" />
                 <ActionLink to="/audit" icon={ClipboardList} label="Review audit logs" hint="Sensitive activity" />
@@ -340,7 +403,7 @@ function AdminDashboard({
   );
 }
 
-function PlanManager({ plans, loading, error }: { plans: Plan[]; loading: boolean; error: string }) {
+function PlanManager({ plans, loading, error, onSelectPlan }: { plans: Plan[]; loading: boolean; error: string; onSelectPlan: (plan: Plan) => void }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -449,7 +512,11 @@ function PlanManager({ plans, loading, error }: { plans: Plan[]; loading: boolea
           <p className="text-xs text-muted-foreground">No active plans yet.</p>
         ) : (
           plans.slice(0, 4).map((plan) => (
-            <div key={plan.id} className="flex items-center justify-between gap-3 rounded-md bg-muted px-2.5 py-2">
+            <div
+              key={plan.id}
+              onClick={() => onSelectPlan(plan)}
+              className="flex items-center justify-between gap-3 rounded-md bg-muted px-2.5 py-2 hover:bg-muted/80 cursor-pointer transition"
+            >
               <div className="min-w-0">
                 <p className="truncate text-xs font-medium">{plan.name}</p>
                 <p className="text-[11px] text-muted-foreground">{plan.duration_days} days</p>
@@ -526,7 +593,15 @@ function FrontDeskDashboard({
   );
 }
 
-function MemberDashboard({ user }: { user: ReturnType<typeof useCurrentUser> }) {
+function MemberDashboard({
+  user,
+  onSelectPlan,
+  onSelectItem,
+}: {
+  user: ReturnType<typeof useCurrentUser>;
+  onSelectPlan: (plan: Plan) => void;
+  onSelectItem: (item: any) => void;
+}) {
   const [activeReceipt, setActiveReceipt] = useState<any>(null);
   const memberQuery = useQuery({
     queryKey: ["member-profile", user.email],
@@ -536,6 +611,7 @@ function MemberDashboard({ user }: { user: ReturnType<typeof useCurrentUser> }) 
         .from("members")
         .select("*, membership_plans(*)")
         .eq("email", user.email)
+        .limit(1)
         .maybeSingle();
       if (error) throw error;
       return data;
@@ -603,7 +679,14 @@ function MemberDashboard({ user }: { user: ReturnType<typeof useCurrentUser> }) 
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {/* Plan Card */}
-        <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-sm">
+        <div
+          onClick={() => {
+            if (member?.membership_plans) {
+              onSelectPlan(member.membership_plans as any);
+            }
+          }}
+          className={`relative overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-sm ${member?.membership_plans ? 'cursor-pointer hover:border-primary/50 transition-all' : ''}`}
+        >
           <div className="absolute right-0 top-0 -mr-6 -mt-6 h-20 w-20 rounded-full bg-primary/10 blur-xl" />
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Your Plan</h3>
           {memberQuery.isLoading ? (
@@ -713,7 +796,11 @@ function MemberDashboard({ user }: { user: ReturnType<typeof useCurrentUser> }) 
               <p className="text-xs text-muted-foreground py-4 text-center col-span-2">No supplements available.</p>
             ) : (
               supplements.map((s) => (
-                <div key={s.id} className="flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-background/50 p-2.5">
+                <div
+                  key={s.id}
+                  onClick={() => onSelectItem(s)}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-background/50 p-2.5 hover:border-primary/40 cursor-pointer transition-all animate-in fade-in duration-100"
+                >
                   <div className="min-w-0">
                     <p className="truncate text-xs font-semibold">{s.name}</p>
                     {s.sale_price_cents && (
@@ -1078,5 +1165,171 @@ function ReceiptModal({ invoice, member, onClose }: { invoice: any; member: any;
     </DialogContent>
   );
 }
+
+interface PlanDetailDialogProps {
+  plan: Plan;
+  onClose: () => void;
+}
+
+function PlanDetailDialog({ plan, onClose }: PlanDetailDialogProps) {
+  return (
+    <DialogContent className="max-w-md overflow-hidden p-0 rounded-2xl border border-border bg-card">
+      <div className="relative h-52 w-full overflow-hidden bg-muted">
+        {plan.photo_url ? (
+          <img
+            src={plan.photo_url}
+            alt={plan.name}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div className="flex h-full w-full flex-col items-center justify-center gradient-primary opacity-90">
+            <Dumbbell className="h-12 w-12 text-primary-foreground/80" />
+          </div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/10 to-transparent" />
+      </div>
+
+      <div className="p-6 space-y-4">
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-xl font-bold text-foreground font-display">{plan.name}</h2>
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                plan.active ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive"
+              }`}
+            >
+              <span className={`mr-1 h-1.5 w-1.5 rounded-full ${plan.active ? "bg-success" : "bg-destructive"}`} />
+              {plan.active ? "Active" : "Inactive"}
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 rounded-xl border border-border bg-muted/30 p-4">
+          <div className="space-y-0.5">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Duration</div>
+            <div className="text-sm font-bold text-foreground flex items-center gap-1.5">
+              <Calendar className="h-4 w-4 text-primary shrink-0" />
+              {plan.duration_days} Days
+            </div>
+          </div>
+          <div className="space-y-0.5">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Price</div>
+            <div className="text-sm font-bold text-primary">
+              {fmtMoney(plan.price_cents)}
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <h4 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">About this plan</h4>
+          <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
+            {plan.description || "Access to all gym facilities and equipment."}
+          </p>
+        </div>
+
+        <DialogFooter className="pt-2">
+          <Button onClick={onClose} className="w-full gradient-primary text-primary-foreground font-medium shadow-glow">
+            Done
+          </Button>
+        </DialogFooter>
+      </div>
+    </DialogContent>
+  );
+}
+
+interface ItemDetailDialogProps {
+  item: any;
+  onClose: () => void;
+}
+
+function ItemDetailDialog({ item, onClose }: ItemDetailDialogProps) {
+  let stockTone = "success";
+  let stockLabel = `${item.quantity} in stock`;
+  if (item.quantity === 0) {
+    stockTone = "destructive";
+    stockLabel = "Out of Stock";
+  } else if (item.quantity <= (item.min_stock_level ?? 5)) {
+    stockTone = "warning";
+    stockLabel = `${item.quantity} Low Stock (Min ${item.min_stock_level ?? 5})`;
+  }
+
+  const map: Record<string, string> = {
+    success: "bg-success/15 text-success",
+    warning: "bg-warning/15 text-warning",
+    destructive: "bg-destructive/15 text-destructive",
+  };
+
+  return (
+    <DialogContent className="max-w-md overflow-hidden p-0 rounded-2xl border border-border bg-card">
+      <div className="relative h-52 w-full overflow-hidden bg-muted">
+        {item.photo_url ? (
+          <img
+            src={item.photo_url}
+            alt={item.name}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div className="flex h-full w-full flex-col items-center justify-center gradient-primary opacity-90">
+            <Package className="h-12 w-12 text-primary-foreground/80" />
+          </div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/10 to-transparent" />
+      </div>
+
+      <div className="p-6 space-y-4">
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-xl font-bold text-foreground font-display">{item.name}</h2>
+            <span className="rounded bg-muted px-2.5 py-0.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+              {item.category}
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 rounded-xl border border-border bg-muted/30 p-4">
+          <div className="space-y-0.5">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Price</div>
+            <div className="text-sm font-bold text-primary">
+              {item.sale_price_cents ? fmtMoney(item.sale_price_cents) : "Not for retail"}
+            </div>
+          </div>
+          <div className="space-y-0.5">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Stock Status</div>
+            <div className="text-xs font-bold mt-0.5">
+              <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-medium capitalize ${map[stockTone] ?? "bg-muted text-muted-foreground"}`}>
+                {stockLabel}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 border-b border-border pb-3 text-xs">
+          <div>
+            <span className="text-muted-foreground font-medium">Supplier:</span>{" "}
+            <span className="text-foreground font-semibold">{item.supplier ?? "No supplier listed"}</span>
+          </div>
+          <div>
+            <span className="text-muted-foreground font-medium">Min Level:</span>{" "}
+            <span className="text-foreground font-semibold">{item.min_stock_level ?? 5} units</span>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <h4 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Description</h4>
+          <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
+            {item.description || "No description provided for this retail item."}
+          </p>
+        </div>
+
+        <DialogFooter className="pt-2">
+          <Button onClick={onClose} className="w-full gradient-primary text-primary-foreground font-medium shadow-glow">
+            Done
+          </Button>
+        </DialogFooter>
+      </div>
+    </DialogContent>
+  );
+}
+
 
 

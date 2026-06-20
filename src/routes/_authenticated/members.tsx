@@ -297,6 +297,19 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; percent: number; upto: number } | null>(null);
   const [checkingCoupon, setCheckingCoupon] = useState(false);
 
+  const [allProfiles, setAllProfiles] = useState<{ email: string; full_name: string | null }[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(false);
+
+  useEffect(() => {
+    supabase
+      .from("profiles")
+      .select("email, full_name")
+      .then(({ data }) => {
+        if (data) setAllProfiles(data);
+      });
+  }, []);
+
   useEffect(() => {
     if (!plan_id && plans[0]?.id) setPlanId(plans[0].id);
   }, [plan_id, plans]);
@@ -309,8 +322,8 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
     setCheckingCoupon(true);
     const searchCode = couponCode.trim().toUpperCase();
     try {
-      const { data, error } = await supabase
-        .from("coupons")
+      const { data, error } = await (supabase
+        .from("coupons") as any)
         .select("*")
         .eq("code", searchCode)
         .eq("active", true)
@@ -320,6 +333,9 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
 
       if (!data) {
         toast.error("Invalid or expired coupon code");
+        setAppliedCoupon(null);
+      } else if (data.max_uses != null && data.used_count >= data.max_uses) {
+        toast.error(`Coupon "${data.code}" has reached its maximum usage limit.`);
         setAppliedCoupon(null);
       } else {
         setAppliedCoupon({
@@ -344,15 +360,66 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
   }
   const finalPrice = originalPrice - discountCents;
 
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
+
+    // Email is mandatory and must belong to a registered Google account
+    if (!email.trim()) {
+      toast.error("Email is required. The member must have a Google account on this app.");
+      setBusy(false);
+      return;
+    }
+    const profileMatch = allProfiles.find((p) => p.email.toLowerCase() === email.trim().toLowerCase());
+    if (!profileMatch) {
+      toast.error("This email has no registered Google account. Ask the member to sign in with Google first.");
+      setBusy(false);
+      return;
+    }
 
     const cleanPhone = phone.replace(/\D/g, "");
     if (cleanPhone.length !== 10) {
       toast.error("Invalid phone number. Must be exactly 10 digits.");
       setBusy(false);
       return;
+    }
+
+
+    // Check for duplicate phone
+    const { data: dupPhone, error: dupPhoneErr } = await supabase
+      .from("members")
+      .select("id")
+      .eq("phone", cleanPhone)
+      .maybeSingle();
+    if (dupPhoneErr && dupPhoneErr.code !== "PGRST116" && !dupPhoneErr.message.includes("multiple")) {
+      toast.error(dupPhoneErr.message);
+      setBusy(false);
+      return;
+    }
+    if (dupPhone || (dupPhoneErr && (dupPhoneErr.code === "PGRST116" || dupPhoneErr.message.includes("multiple")))) {
+      toast.error("A member with this phone number already exists.");
+      setBusy(false);
+      return;
+    }
+
+    // Check for duplicate email
+    if (email && email.trim()) {
+      const { data: dupEmail, error: dupEmailErr } = await supabase
+        .from("members")
+        .select("id")
+        .eq("email", email.trim().toLowerCase())
+        .maybeSingle();
+      if (dupEmailErr && dupEmailErr.code !== "PGRST116" && !dupEmailErr.message.includes("multiple")) {
+        toast.error(dupEmailErr.message);
+        setBusy(false);
+        return;
+      }
+      if (dupEmail || (dupEmailErr && (dupEmailErr.code === "PGRST116" || dupEmailErr.message.includes("multiple")))) {
+        toast.error("A member with this email address already exists.");
+        setBusy(false);
+        return;
+      }
     }
 
     const { data: userData } = await supabase.auth.getUser();
@@ -375,6 +442,31 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
       .select()
       .single();
     if (error) { toast.error(error.message); setBusy(false); return; }
+
+    // Increment coupon usage count if a coupon was applied
+    if (appliedCoupon) {
+      await (supabase as any).rpc("increment_coupon_usage", { coupon_code: appliedCoupon.code }).catch(() => {
+        // Silently fail — coupon was already validated
+      });
+    }
+
+
+    // Log audit event
+    await supabase.from("audit_logs").insert({
+      actor_id: userId,
+      actor_email: userData.user?.email ?? null,
+      action: "MEMBER_CREATE",
+      entity_type: "members",
+      entity_id: data.id,
+      metadata: {
+        full_name: data.full_name,
+        phone: data.phone,
+        email: data.email,
+        plan_id: data.plan_id,
+        coupon_code: data.coupon_code,
+        coupon_discount_cents: data.coupon_discount_cents
+      }
+    });
     
     // Trigger welcome email asynchronously
     if (email && data) {
@@ -449,7 +541,62 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
       <form onSubmit={submit} className="space-y-3">
         <div><Label>Full name</Label><Input value={full_name} onChange={(e) => setName(e.target.value)} required /></div>
         <div><Label>Phone</Label><Input value={phone} onChange={(e) => setPhone(e.target.value)} required /></div>
-        <div><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
+        <div className="relative">
+          <Label htmlFor="member-email">Email <span className="text-destructive">*</span></Label>
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Input 
+                id="member-email"
+                type="email" 
+                value={email} 
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setEmail(val);
+                  setShowSuggestions(true);
+                  setEmailVerified(allProfiles.some((p) => p.email.toLowerCase() === val.trim().toLowerCase()));
+                }} 
+                onFocus={() => setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                required
+                placeholder="Search registered Google accounts..."
+                className={emailVerified ? "border-emerald-500/60 pr-8" : ""}
+              />
+              {emailVerified && (
+                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-emerald-400 text-[10px] font-bold">✓</span>
+              )}
+            </div>
+          </div>
+          {email.length > 0 && !emailVerified && (
+            <p className="mt-1 text-[11px] text-amber-400">⚠ No Google account found with this email. The member must log in first.</p>
+          )}
+          {emailVerified && (
+            <p className="mt-1 text-[11px] text-emerald-400">✓ Verified — matched to a registered Google account.</p>
+          )}
+          {showSuggestions && email.length >= 1 && (
+            (() => {
+              const filteredProfiles = allProfiles.filter(p => p.email.toLowerCase().includes(email.toLowerCase()));
+              if (filteredProfiles.length === 0) return null;
+              return (
+                <ul className="absolute left-0 right-0 z-50 mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-card shadow-lg divide-y divide-border/60">
+                  {filteredProfiles.map((p) => (
+                    <li 
+                      key={p.email} 
+                      onMouseDown={() => {
+                        setEmail(p.email);
+                        setEmailVerified(true);
+                        setShowSuggestions(false);
+                      }}
+                      className="px-3 py-2 text-xs hover:bg-muted cursor-pointer transition flex flex-col gap-0.5"
+                    >
+                      <span className="font-semibold text-foreground">{p.email}</span>
+                      {p.full_name && <span className="text-[10px] text-muted-foreground">{p.full_name}</span>}
+                    </li>
+                  ))}
+                </ul>
+              );
+            })()
+          )}
+        </div>
         <div>
           <Label>Plan</Label>
           <Select value={plan_id} onValueChange={(val) => { setPlanId(val); setAppliedCoupon(null); }}>
@@ -981,6 +1128,44 @@ function EditMemberDialog({ member, plans, onClose }: { member: Member; plans: P
       return;
     }
 
+    // Check for duplicate phone
+    const { data: dupPhone, error: dupPhoneErr } = await supabase
+      .from("members")
+      .select("id")
+      .eq("phone", cleanPhone)
+      .neq("id", member.id)
+      .maybeSingle();
+    if (dupPhoneErr && dupPhoneErr.code !== "PGRST116" && !dupPhoneErr.message.includes("multiple")) {
+      toast.error(dupPhoneErr.message);
+      setBusy(false);
+      return;
+    }
+    if (dupPhone || (dupPhoneErr && (dupPhoneErr.code === "PGRST116" || dupPhoneErr.message.includes("multiple")))) {
+      toast.error("Another member with this phone number already exists.");
+      setBusy(false);
+      return;
+    }
+
+    // Check for duplicate email
+    if (email && email.trim()) {
+      const { data: dupEmail, error: dupEmailErr } = await supabase
+        .from("members")
+        .select("id")
+        .eq("email", email.trim().toLowerCase())
+        .neq("id", member.id)
+        .maybeSingle();
+      if (dupEmailErr && dupEmailErr.code !== "PGRST116" && !dupEmailErr.message.includes("multiple")) {
+        toast.error(dupEmailErr.message);
+        setBusy(false);
+        return;
+      }
+      if (dupEmail || (dupEmailErr && (dupEmailErr.code === "PGRST116" || dupEmailErr.message.includes("multiple")))) {
+        toast.error("Another member with this email address already exists.");
+        setBusy(false);
+        return;
+      }
+    }
+
     const { error } = await supabase
       .from("members")
       .update({
@@ -1003,6 +1188,23 @@ function EditMemberDialog({ member, plans, onClose }: { member: Member; plans: P
       setBusy(false);
       return;
     }
+
+    // Log audit event
+    const { data: actorData } = await supabase.auth.getUser();
+    await supabase.from("audit_logs").insert({
+      actor_id: actorData.user?.id ?? null,
+      actor_email: actorData.user?.email ?? null,
+      action: "MEMBER_EDIT",
+      entity_type: "members",
+      entity_id: member.id,
+      metadata: {
+        full_name: fullName.trim(),
+        phone: cleanPhone,
+        email: email.trim() || null,
+        plan_id: planId || null,
+        status
+      }
+    });
 
     toast.success("Member profile updated successfully");
     setBusy(false);

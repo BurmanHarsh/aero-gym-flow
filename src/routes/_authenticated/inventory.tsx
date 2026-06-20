@@ -21,8 +21,12 @@ import {
   Factory,
   ShieldAlert,
   ShoppingCart,
+  Upload,
+  Image as ImageIcon,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useServerFn } from "@tanstack/react-start";
+import { sendInventorySaleEmail } from "@/lib/aerogym/email.functions";
 
 export const Route = createFileRoute("/_authenticated/inventory")({
   head: () => ({ meta: [{ title: "Inventory · Tank by Tapan" }] }),
@@ -43,6 +47,7 @@ interface InventoryItem {
   purchase_price_cents: number;
   sale_price_cents: number | null;
   supplier: string | null;
+  photo_url: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -84,6 +89,7 @@ async function insertInventoryItem(item: Omit<InventoryItem, "id" | "created_at"
       category: item.category,
       supplier: item.supplier,
       description: item.description,
+      photo_url: item.photo_url,
     });
     
   if (error) throw error;
@@ -101,6 +107,7 @@ async function updateInventoryItem(item: Partial<InventoryItem> & { id: string }
       category: item.category,
       supplier: item.supplier,
       description: item.description,
+      photo_url: item.photo_url,
     })
     .eq("id", item.id);
     
@@ -119,8 +126,10 @@ interface SaleRecord {
   payment_method: string;
   coupon_code: string | null;
   coupon_discount_cents: number;
+  buyer_email: string | null;
   profiles?: {
     full_name: string;
+    email: string;
   } | null;
 }
 
@@ -139,6 +148,9 @@ function InventoryPage() {
   const [deletingItem, setDeletingItem] = useState<InventoryItem | null>(null);
   const [deletingSale, setDeletingSale] = useState<SaleRecord | null>(null);
   const [editingSale, setEditingSale] = useState<SaleRecord | null>(null);
+  const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [showSellPOS, setShowSellPOS] = useState(false);
   const [cart, setCart] = useState<Array<{ item: InventoryItem; quantity: number }>>([]);
 
@@ -176,7 +188,7 @@ function InventoryPage() {
     setSalesLoading(true);
     const { data, error } = await supabase
       .from("inventory_sales")
-      .select("*, profiles:profiles(full_name)")
+      .select("*, profiles:profiles(full_name, email)")
       .order("sold_at", { ascending: false });
 
     if (error) {
@@ -292,7 +304,7 @@ function InventoryPage() {
                     : "border-transparent text-muted-foreground hover:text-foreground"
                 }`}
               >
-                Sales History
+                Sold Items
               </button>
             </div>
           )}
@@ -359,165 +371,245 @@ function InventoryPage() {
                     stockLabel = `${item.quantity} Low Stock (Min ${item.min_stock_level})`;
                   }
 
-                  return (
-                    <div
-                      key={item.id}
-                      className="flex flex-col gap-3 px-5 py-4 hover:bg-accent/10 transition sm:flex-row sm:items-center sm:justify-between"
-                    >
-                      <div className="flex items-start gap-4 min-w-0 flex-1">
-                        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground mt-0.5">
-                          <CatIcon className="h-4 w-4" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-baseline gap-2">
-                            <span className="font-medium text-foreground">{item.name}</span>
-                            <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground tracking-wider uppercase">
-                              {item.category}
-                            </span>
+                    return (
+                      <div
+                        key={item.id}
+                        onClick={() => setSelectedItem(item)}
+                        className="flex flex-col gap-3 px-5 py-4 hover:bg-accent/10 transition sm:flex-row sm:items-center sm:justify-between cursor-pointer"
+                      >
+                        <div className="flex items-start gap-4 min-w-0 flex-1">
+                          {item.photo_url ? (
+                            <img
+                              src={item.photo_url}
+                              alt={item.name}
+                              className="h-10 w-10 shrink-0 rounded-xl object-cover mt-0.5"
+                            />
+                          ) : (
+                            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground mt-0.5">
+                              <CatIcon className="h-4 w-4" />
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-baseline gap-2">
+                              <span className="font-medium text-foreground">{item.name}</span>
+                              <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground tracking-wider uppercase">
+                                {item.category}
+                              </span>
+                            </div>
+                            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                              <span className="inline-flex items-center gap-1">
+                                <Factory className="h-3.5 w-3.5" />
+                                {item.supplier ?? "No supplier listed"}
+                              </span>
+                              <StockPill tone={stockTone} label={stockLabel} />
+                              {item.description && <span className="truncate max-w-[280px]">· {item.description}</span>}
+                            </div>
                           </div>
-                          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                            <span className="inline-flex items-center gap-1">
-                              <Factory className="h-3.5 w-3.5" />
-                              {item.supplier ?? "No supplier listed"}
-                            </span>
-                            <StockPill tone={stockTone} label={stockLabel} />
-                            {item.description && <span className="truncate max-w-[280px]">· {item.description}</span>}
-                          </div>
                         </div>
-                      </div>
 
-                      <div className="flex items-center justify-between gap-4 shrink-0 sm:justify-end">
-                        {isStaff ? (
-                          <>
-                            <div className="text-right text-xs">
-                              {me.isAdmin && (
-                                <div className="font-semibold text-foreground">Buy: {money(item.purchase_price_cents)}</div>
-                              )}
-                              {item.sale_price_cents ? (
-                                <div className="text-[11px] text-muted-foreground">Sell: {money(item.sale_price_cents)}</div>
-                              ) : (
-                                <div className="text-[11px] text-muted-foreground italic">Not for retail</div>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <Button
-                                onClick={() => setEditingItem(item)}
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
-                              >
-                                <Edit2 className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button
-                                onClick={() => setDeletingItem(item)}
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-muted"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
-                          </>
-                        ) : (
-                          <div className="text-right">
-                            {item.sale_price_cents && (
-                              <div className="text-sm font-bold text-foreground">
-                                Price: {money(item.sale_price_cents)}
+                        <div className="flex items-center justify-between gap-4 shrink-0 sm:justify-end">
+                          {isStaff ? (
+                            <>
+                              <div className="text-right text-xs">
+                                {me.isAdmin && (
+                                  <div className="font-semibold text-foreground">Buy: {money(item.purchase_price_cents)}</div>
+                                )}
+                                {item.sale_price_cents ? (
+                                  <div className="text-[11px] text-muted-foreground">Sell: {money(item.sale_price_cents)}</div>
+                                ) : (
+                                  <div className="text-[11px] text-muted-foreground italic">Not for retail</div>
+                                )}
                               </div>
-                            )}
-                          </div>
-                        )}
+                              <div className="flex items-center gap-1.5">
+                                <Button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingItem(item);
+                                  }}
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
+                                >
+                                  <Edit2 className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeletingItem(item);
+                                  }}
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-muted"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="text-right">
+                              {item.sale_price_cents && (
+                                <div className="text-sm font-bold text-foreground">
+                                  Price: {money(item.sale_price_cents)}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  );
+                    );
                 })}
               </div>
             )}
           </div>
         </>
       ) : (
-        /* Sales History view */
-        <div className="overflow-hidden rounded-2xl border border-border bg-card">
-          {salesLoading ? (
-            <div className="p-10 text-center text-sm text-muted-foreground">Loading sales history...</div>
-          ) : sales.length === 0 ? (
-            <div className="p-12 text-center text-sm text-muted-foreground">No sales have been recorded yet.</div>
-          ) : (
-            <div className="divide-y divide-border">
-              {sales.map((sale) => {
-                const formattedDate = new Date(sale.sold_at).toLocaleString();
-                return (
-                  <div key={sale.id} className="flex flex-col gap-3 px-5 py-4 hover:bg-accent/10 transition sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex items-start gap-4 min-w-0 flex-1">
-                      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-success/10 text-success mt-0.5">
-                        <ShoppingCart className="h-4 w-4" />
+        /* Sold Items view */
+        <div className="space-y-6">
+          {(() => {
+            const todayLocal = new Date();
+            const todayYear = todayLocal.getFullYear();
+            const todayMonth = String(todayLocal.getMonth() + 1).padStart(2, "0");
+            const todayDay = String(todayLocal.getDate()).padStart(2, "0");
+            const todayStr = `${todayYear}-${todayMonth}-${todayDay}`;
+
+            const totalTillDate = sales.reduce((acc, s) => acc + s.total_amount_cents, 0);
+            const totalToday = sales.reduce((acc, s) => {
+              const saleLocalDateStr = new Date(s.sold_at).toLocaleDateString("en-CA");
+              return saleLocalDateStr === todayStr ? acc + s.total_amount_cents : acc;
+            }, 0);
+
+            const filteredSales = sales.filter((sale) => {
+              const saleLocalDateStr = new Date(sale.sold_at).toLocaleDateString("en-CA");
+              if (startDate && saleLocalDateStr < startDate) return false;
+              if (endDate && saleLocalDateStr > endDate) return false;
+              return true;
+            });
+
+            return (
+              <>
+                {/* Summary Metrics */}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-border bg-card p-5">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Total Sold Today</div>
+                    <div className="mt-1 text-2xl font-bold text-emerald-400">{money(totalToday)}</div>
+                  </div>
+                  <div className="rounded-2xl border border-border bg-card p-5">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Total Sold Till Date</div>
+                    <div className="mt-1 text-2xl font-bold text-primary">{money(totalTillDate)}</div>
+                  </div>
+                </div>
+
+                {isStaff && (
+                  <>
+                    {/* Date Filters */}
+                    <div className="flex flex-wrap items-end gap-4 bg-card border border-border rounded-2xl p-5">
+                      <div className="flex-1 min-w-[200px] space-y-1.5">
+                        <Label htmlFor="start-date" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Start Date</Label>
+                        <Input
+                          id="start-date"
+                          type="date"
+                          value={startDate}
+                          onChange={(e) => setStartDate(e.target.value)}
+                          className="bg-background/50 h-10"
+                        />
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-baseline gap-2">
-                          <span className="font-semibold text-foreground">{sale.item_name}</span>
-                          <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground tracking-wider uppercase">
-                            {sale.quantity} {sale.quantity === 1 ? "unit" : "units"} sold
-                          </span>
-                          <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-semibold tracking-wider uppercase ${sale.payment_method === "upi" ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20" : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"}`}>
-                            {sale.payment_method || "cash"}
-                          </span>
-                          {sale.coupon_code && (
-                            <span className="inline-flex items-center rounded bg-primary/10 border border-primary/20 px-1.5 py-0.5 text-[9px] font-semibold tracking-wider text-primary uppercase">
-                              Coupon: {sale.coupon_code} (-{money(sale.coupon_discount_cents ?? 0)})
-                            </span>
-                          )}
-                        </div>
-                        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                          <span>Sold at {formattedDate}</span>
-                          <span>·</span>
-                          <span>By {sale.profiles?.full_name ?? "System / Staff"}</span>
-                        </div>
+                      <div className="flex-1 min-w-[200px] space-y-1.5">
+                        <Label htmlFor="end-date" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">End Date</Label>
+                        <Input
+                          id="end-date"
+                          type="date"
+                          value={endDate}
+                          onChange={(e) => setEndDate(e.target.value)}
+                          className="bg-background/50 h-10"
+                        />
+                      </div>
+                      <div>
+                        {(startDate || endDate) && (
+                          <Button
+                            variant="ghost"
+                            onClick={() => {
+                              setStartDate("");
+                              setEndDate("");
+                            }}
+                            className="text-xs text-muted-foreground hover:text-foreground h-10"
+                          >
+                            Clear Filters
+                          </Button>
+                        )}
                       </div>
                     </div>
-                    <div className="flex items-center justify-between gap-4 shrink-0 sm:justify-end">
-                      <div className="text-right">
-                        <div className="text-sm font-bold text-foreground">{money(sale.total_amount_cents)}</div>
-                        <div className="text-[11px] text-muted-foreground">
-                          {sale.coupon_discount_cents ? (
-                            <>
-                              <span className="line-through mr-1">{money(sale.sale_price_cents * sale.quantity)}</span>
-                              <span>{money(sale.sale_price_cents)} each</span>
-                            </>
-                          ) : (
-                            <span>{money(sale.sale_price_cents)} each</span>
-                          )}
-                        </div>
-                      </div>
-                      {isStaff && (
-                        <div className="flex items-center gap-1">
-                          <Button
-                            onClick={() => setEditingSale(sale)}
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
-                          >
-                            <Edit2 className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            onClick={() => setDeletingSale(sale)}
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-muted"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+
+                    {/* Sales Records List */}
+                    <div className="overflow-hidden rounded-2xl border border-border bg-card">
+                      {salesLoading ? (
+                        <div className="p-10 text-center text-sm text-muted-foreground">Loading sold items...</div>
+                      ) : filteredSales.length === 0 ? (
+                        <div className="p-12 text-center text-sm text-muted-foreground">No sold items match the criteria.</div>
+                      ) : (
+                        <div className="divide-y divide-border">
+                          {filteredSales.map((sale) => {
+                            const formattedDate = new Date(sale.sold_at).toLocaleString();
+                            return (
+                              <div key={sale.id} className="flex flex-col gap-3 px-5 py-4 hover:bg-accent/10 transition sm:flex-row sm:items-center sm:justify-between">
+                                <div className="flex items-start gap-4 min-w-0 flex-1">
+                                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-success/10 text-success mt-0.5">
+                                    <ShoppingCart className="h-4 w-4" />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex flex-wrap items-baseline gap-2">
+                                      <span className="font-semibold text-foreground">{sale.item_name}</span>
+                                      <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground tracking-wider uppercase">
+                                        {sale.quantity} {sale.quantity === 1 ? "unit" : "units"} sold
+                                      </span>
+                                      <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-semibold tracking-wider uppercase ${sale.payment_method === "upi" ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20" : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"}`}>
+                                        {sale.payment_method || "cash"}
+                                      </span>
+                                      {sale.coupon_code && (
+                                        <span className="inline-flex items-center rounded bg-primary/10 border border-primary/20 px-1.5 py-0.5 text-[9px] font-semibold tracking-wider text-primary uppercase">
+                                          Coupon: {sale.coupon_code} (-{money(sale.coupon_discount_cents ?? 0)})
+                                        </span>
+                                      )}
+                                      <span className="inline-flex items-center rounded bg-muted/60 px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground border border-border/30">
+                                        To: {sale.buyer_email || "Walk-in Customer"}
+                                      </span>
+                                    </div>
+                                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                                      <span>Sold at {formattedDate}</span>
+                                      <span>·</span>
+                                      <span>By {sale.profiles?.full_name ?? "System / Staff"}{sale.profiles?.email ? ` (${sale.profiles.email})` : ""}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-between gap-4 shrink-0 sm:justify-end">
+                                  <div className="text-right">
+                                    <div className="text-sm font-bold text-foreground">{money(sale.total_amount_cents)}</div>
+                                    <div className="text-[11px] text-muted-foreground">
+                                      {sale.coupon_discount_cents ? (
+                                        <>
+                                          <span className="line-through mr-1">{money(sale.sale_price_cents * sale.quantity)}</span>
+                                          <span>{money(sale.sale_price_cents)} each</span>
+                                        </>
+                                      ) : (
+                                        <span>{money(sale.sale_price_cents)} each</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  </>
+                )}
+              </>
+            );
+          })()}
         </div>
       )}
-        </>
-      )}
+    </>
+  )}
 
       {/* Edit Item Dialog */}
       {editingItem && (
@@ -611,7 +703,104 @@ function InventoryPage() {
           />
         </Dialog>
       )}
+
+      {/* Item Details Dialog */}
+      <Dialog open={!!selectedItem} onOpenChange={(o) => !o && setSelectedItem(null)}>
+        {selectedItem && (
+          <ItemDetailDialog
+            item={selectedItem}
+            onClose={() => setSelectedItem(null)}
+          />
+        )}
+      </Dialog>
     </div>
+  );
+}
+
+interface ItemDetailDialogProps {
+  item: InventoryItem;
+  onClose: () => void;
+}
+
+function ItemDetailDialog({ item, onClose }: ItemDetailDialogProps) {
+  const CatIcon = getCategoryIcon(item.category);
+  let stockTone = "success";
+  let stockLabel = `${item.quantity} in stock`;
+  if (item.quantity === 0) {
+    stockTone = "destructive";
+    stockLabel = "Out of Stock";
+  } else if (item.quantity <= item.min_stock_level) {
+    stockTone = "warning";
+    stockLabel = `${item.quantity} Low Stock (Min ${item.min_stock_level})`;
+  }
+
+  return (
+    <DialogContent className="max-w-md overflow-hidden p-0 rounded-2xl border border-border bg-card">
+      <div className="relative h-52 w-full overflow-hidden bg-muted">
+        {item.photo_url ? (
+          <img
+            src={item.photo_url}
+            alt={item.name}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div className="flex h-full w-full flex-col items-center justify-center gradient-primary opacity-90">
+            <CatIcon className="h-12 w-12 text-primary-foreground/80" />
+          </div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/10 to-transparent" />
+      </div>
+
+      <div className="p-6 space-y-4">
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-xl font-bold text-foreground font-display">{item.name}</h2>
+            <span className="rounded bg-muted px-2.5 py-0.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+              {item.category}
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 rounded-xl border border-border bg-muted/30 p-4">
+          <div className="space-y-0.5">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Price</div>
+            <div className="text-sm font-bold text-primary">
+              {item.sale_price_cents ? money(item.sale_price_cents) : "Not for retail"}
+            </div>
+          </div>
+          <div className="space-y-0.5">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Stock Status</div>
+            <div className="text-xs font-bold mt-0.5">
+              <StockPill tone={stockTone} label={stockLabel} />
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 border-b border-border pb-3 text-xs">
+          <div>
+            <span className="text-muted-foreground font-medium">Supplier:</span>{" "}
+            <span className="text-foreground font-semibold">{item.supplier ?? "No supplier listed"}</span>
+          </div>
+          <div>
+            <span className="text-muted-foreground font-medium">Min Level:</span>{" "}
+            <span className="text-foreground font-semibold">{item.min_stock_level} units</span>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <h4 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Description</h4>
+          <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
+            {item.description || "No description provided for this retail item."}
+          </p>
+        </div>
+
+        <DialogFooter className="pt-2">
+          <Button onClick={onClose} className="w-full gradient-primary text-primary-foreground font-medium shadow-glow">
+            Done
+          </Button>
+        </DialogFooter>
+      </div>
+    </DialogContent>
   );
 }
 
@@ -653,6 +842,7 @@ function AddItemDialog({ onClose, isAdmin }: { onClose: () => void; isAdmin: boo
   const [category, setCategory] = useState<string>("Supplements");
   const [supplier, setSupplier] = useState("");
   const [description, setDescription] = useState("");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
@@ -660,6 +850,16 @@ function AddItemDialog({ onClose, isAdmin }: { onClose: () => void; isAdmin: boo
     setBusy(true);
 
     try {
+      let uploadedUrl = null;
+      if (photoFile) {
+        const fileExt = photoFile.name.split(".").pop();
+        const filePath = `products/${Math.random().toString(36).substring(2, 15)}-${Date.now()}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage.from("photos").upload(filePath, photoFile);
+        if (uploadError) throw uploadError;
+        const { data: { publicUrl } } = supabase.storage.from("photos").getPublicUrl(filePath);
+        uploadedUrl = publicUrl;
+      }
+
       await insertInventoryItem({
         name: name.trim(),
         quantity: parseInt(quantity) || 0,
@@ -669,6 +869,7 @@ function AddItemDialog({ onClose, isAdmin }: { onClose: () => void; isAdmin: boo
         category,
         supplier: supplier.trim() || null,
         description: description.trim() || null,
+        photo_url: uploadedUrl,
       });
 
       toast.success("Inventory item added successfully");
@@ -695,6 +896,17 @@ function AddItemDialog({ onClose, isAdmin }: { onClose: () => void; isAdmin: boo
             required
           />
         </div>
+        {isAdmin && (
+          <div>
+            <Label>Item Photo (Optional)</Label>
+            <Input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
+              className="bg-background/50 cursor-pointer"
+            />
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <Label>Quantity</Label>
@@ -812,6 +1024,7 @@ function EditItemDialog({ item, onClose, isAdmin }: { item: InventoryItem; onClo
   const [category, setCategory] = useState(item.category);
   const [supplier, setSupplier] = useState(item.supplier ?? "");
   const [description, setDescription] = useState(item.description ?? "");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
@@ -819,6 +1032,16 @@ function EditItemDialog({ item, onClose, isAdmin }: { item: InventoryItem; onClo
     setBusy(true);
 
     try {
+      let uploadedUrl = item.photo_url;
+      if (photoFile) {
+        const fileExt = photoFile.name.split(".").pop();
+        const filePath = `products/${Math.random().toString(36).substring(2, 15)}-${Date.now()}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage.from("photos").upload(filePath, photoFile);
+        if (uploadError) throw uploadError;
+        const { data: { publicUrl } } = supabase.storage.from("photos").getPublicUrl(filePath);
+        uploadedUrl = publicUrl;
+      }
+
       await updateInventoryItem({
         id: item.id,
         name: name.trim(),
@@ -829,6 +1052,7 @@ function EditItemDialog({ item, onClose, isAdmin }: { item: InventoryItem; onClo
         category,
         supplier: supplier.trim() || null,
         description: description.trim() || null,
+        photo_url: uploadedUrl,
       });
 
       toast.success("Inventory item updated successfully");
@@ -854,6 +1078,17 @@ function EditItemDialog({ item, onClose, isAdmin }: { item: InventoryItem; onClo
             required
           />
         </div>
+        {isAdmin && (
+          <div>
+            <Label>Item Photo (Optional)</Label>
+            <Input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
+              className="bg-background/50 cursor-pointer"
+            />
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <Label>Quantity</Label>
@@ -1169,6 +1404,20 @@ function POSCartView({ rows, cart, setCart, onClose, userId }: POSCartViewProps)
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; percent: number; upto: number } | null>(null);
   const [checkingCoupon, setCheckingCoupon] = useState(false);
 
+  const [allProfiles, setAllProfiles] = useState<{ email: string; full_name: string | null }[]>([]);
+  const [buyerEmail, setBuyerEmail] = useState("");
+  const [showEmailSuggestions, setShowEmailSuggestions] = useState(false);
+  const sendSaleEmailFn = useServerFn(sendInventorySaleEmail);
+
+  useEffect(() => {
+    supabase
+      .from("profiles")
+      .select("email, full_name")
+      .then(({ data }) => {
+        if (data) setAllProfiles(data);
+      });
+  }, []);
+
   const sellableItems = rows.filter(
     (item) => item.sale_price_cents && item.sale_price_cents > 0 && item.quantity > 0
   );
@@ -1266,6 +1515,16 @@ function POSCartView({ rows, cart, setCart, onClose, userId }: POSCartViewProps)
       toast.error("Cart is empty");
       return;
     }
+    const emailToUse = buyerEmail.trim();
+    if (!emailToUse) {
+      toast.error("Customer Email is required.");
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailToUse)) {
+      toast.error("Please enter a valid email address.");
+      return;
+    }
     setBusy(true);
     try {
       let distributedDiscountSum = 0;
@@ -1294,6 +1553,7 @@ function POSCartView({ rows, cart, setCart, onClose, userId }: POSCartViewProps)
           payment_method: paymentMethod,
           coupon_code: appliedCoupon ? appliedCoupon.code : null,
           coupon_discount_cents: itemDiscount,
+          buyer_email: buyerEmail.trim() || null,
         });
       });
 
@@ -1308,6 +1568,32 @@ function POSCartView({ rows, cart, setCart, onClose, userId }: POSCartViewProps)
       
       const failed = results.find(r => r.error);
       if (failed) throw failed.error;
+
+      // Send receipt email to the buyer
+      const matchedProfile = allProfiles.find(p => p.email.toLowerCase() === emailToUse.toLowerCase());
+      const customerName = matchedProfile?.full_name || "Customer";
+      const emailItems = cart.map(c => ({
+        name: c.item.name,
+        quantity: c.quantity,
+        price: money(c.quantity * (c.item.sale_price_cents ?? 0)),
+      }));
+
+      try {
+        await sendSaleEmailFn({
+          data: {
+            to: emailToUse,
+            name: customerName,
+            items: emailItems,
+            totalAmount: money(finalTotalCents),
+            paymentMethod,
+            couponCode: appliedCoupon ? appliedCoupon.code : null,
+            discountAmount: appliedCoupon ? money(discountCents) : null,
+          }
+        });
+      } catch (emailErr) {
+        console.error("Failed to send sale receipt email:", emailErr);
+        toast.error("Receipt email failed to send, but checkout succeeded.");
+      }
 
       toast.success("Transaction completed successfully!");
       setCart([]);
@@ -1446,6 +1732,50 @@ function POSCartView({ rows, cart, setCart, onClose, userId }: POSCartViewProps)
         <div className="space-y-4 border-t border-border pt-4 mt-4">
           {cart.length > 0 && (
             <>
+              <div className="relative">
+                <Label htmlFor="buyer-email" className="mb-2 block text-xs uppercase font-medium text-muted-foreground">
+                  Customer Email <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="buyer-email"
+                  type="email"
+                  value={buyerEmail}
+                  onChange={(e) => {
+                    setBuyerEmail(e.target.value);
+                    setShowEmailSuggestions(true);
+                  }}
+                  onFocus={() => setShowEmailSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowEmailSuggestions(false), 200)}
+                  placeholder="Enter or search customer email..."
+                  disabled={busy}
+                  className="bg-card h-9 text-xs"
+                  required
+                />
+                {showEmailSuggestions && buyerEmail.length >= 3 && (
+                  (() => {
+                    const filteredProfiles = allProfiles.filter(p => p.email.toLowerCase().includes(buyerEmail.toLowerCase()));
+                    if (filteredProfiles.length === 0) return null;
+                    return (
+                      <ul className="absolute left-0 right-0 z-50 mt-1 max-h-40 overflow-y-auto rounded-lg border border-border bg-card shadow-lg divide-y divide-border/60">
+                        {filteredProfiles.map((p) => (
+                          <li
+                            key={p.email}
+                            onMouseDown={() => {
+                              setBuyerEmail(p.email);
+                              setShowEmailSuggestions(false);
+                            }}
+                            className="px-3 py-1.5 text-xs hover:bg-muted cursor-pointer transition flex flex-col gap-0.5"
+                          >
+                            <span className="font-semibold text-foreground">{p.email}</span>
+                            {p.full_name && <span className="text-[10px] text-muted-foreground">{p.full_name}</span>}
+                          </li>
+                        ))}
+                      </ul>
+                    );
+                  })()
+                )}
+              </div>
+
               <div>
                 <Label className="mb-2 block text-xs uppercase font-medium text-muted-foreground">Coupon Code (Optional)</Label>
                 <div className="flex gap-2">
@@ -1522,7 +1852,7 @@ function POSCartView({ rows, cart, setCart, onClose, userId }: POSCartViewProps)
 
               <Button
                 onClick={handleCheckout}
-                disabled={busy || cart.length === 0}
+                disabled={busy || cart.length === 0 || !buyerEmail.trim()}
                 className="w-full gradient-primary text-primary-foreground font-semibold shadow-glow"
               >
                 {busy ? "Processing transaction..." : "Complete Sale"}

@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { useServerFn } from "@tanstack/react-start";
+import { verifyCheckinKey } from "@/lib/aerogym/gym.functions";
 import { Button } from "@/components/ui/button";
 import { MapPin, MapPinOff, CheckCircle2, AlertCircle, Loader2, QrCode, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
@@ -40,6 +42,7 @@ function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
 function ScanCheckinPage() {
   const { key } = Route.useSearch();
   const me = useCurrentUser();
+  const verifyKey = useServerFn(verifyCheckinKey);
   
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<"checking-key" | "checking-location" | "processing" | "success-in" | "success-out" | "error">("checking-key");
@@ -53,14 +56,6 @@ function ScanCheckinPage() {
   const [member, setMember] = useState<{ id: string; full_name: string; member_code: string } | null>(null);
 
   useEffect(() => {
-    // 1. Verify access key
-    if (key !== "tank_gate_9bb34964") {
-      setStatus("error");
-      setErrorMsg("Access Denied: Please scan the physical QR code inside the gym to check in.");
-      setLoading(false);
-      return;
-    }
-
     if (me.loading) return;
 
     if (!me.user) {
@@ -70,8 +65,21 @@ function ScanCheckinPage() {
       return;
     }
 
-    // 2. Request Geolocation
-    requestLocation();
+    // Verify key server-side (key is never compared in client code)
+    if (!key) {
+      setStatus("error");
+      setErrorMsg("Access Denied: Please scan the physical QR code inside the gym to check in.");
+      setLoading(false);
+      return;
+    }
+
+    verifyKey({ data: { key } })
+      .then(() => requestLocation())
+      .catch((err: any) => {
+        setStatus("error");
+        setErrorMsg(err?.message ?? "Access Denied: Please scan the physical QR code inside the gym.");
+        setLoading(false);
+      });
   }, [key, me.loading, me.user]);
 
   function requestLocation() {
@@ -276,13 +284,11 @@ function ScanCheckinPage() {
 
         {/* Buttons / Actions */}
         <div className="pt-2 flex flex-col gap-2">
-          {status === "error" && key === "tank_gate_9bb34964" && (
+          {status === "error" && !!key && (
             <>
               <Button onClick={requestLocation} className="w-full gradient-primary text-primary-foreground">
                 Retry Location Verification
               </Button>
-              
-
             </>
           )}
 
@@ -294,7 +300,7 @@ function ScanCheckinPage() {
             </Link>
           )}
 
-          {status === "error" && key !== "tank_gate_9bb34964" && (
+          {status === "error" && !key && (
             <Link to="/dashboard" className="w-full">
               <Button variant="outline" className="w-full">
                 <ArrowLeft className="mr-1.5 h-4 w-4" /> Back to Dashboard
@@ -302,6 +308,7 @@ function ScanCheckinPage() {
             </Link>
           )}
         </div>
+
       </div>
     </div>
   );

@@ -70,8 +70,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const visible = (item: NavItem) => {
     if (me.isAdmin) return true;
     if (me.roles.includes("front_desk")) {
-      // Front desk can only view Dashboard, Members, Inventory, Settings
-      const allowed = ["/dashboard", "/members", "/inventory", "/settings"];
+      // Front desk can only view Dashboard, Members, Inventory, Settings, Plans
+      const allowed = ["/dashboard", "/members", "/inventory","/plans", "/settings"];
       return allowed.includes(item.to);
     }
     // Regular members can only view Dashboard, Attendance, Inventory, Settings, Plans

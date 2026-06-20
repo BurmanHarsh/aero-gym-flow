@@ -581,6 +581,7 @@ export type Database = {
           purchase_price_cents: number
           sale_price_cents: number | null
           supplier: string | null
+          photo_url: string | null
           created_at: string
           updated_at: string
         }
@@ -594,6 +595,7 @@ export type Database = {
           purchase_price_cents?: number
           sale_price_cents?: number | null
           supplier?: string | null
+          photo_url?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -607,6 +609,7 @@ export type Database = {
           purchase_price_cents?: number
           sale_price_cents?: number | null
           supplier?: string | null
+          photo_url?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -625,6 +628,7 @@ export type Database = {
           payment_method: string
           coupon_code: string | null
           coupon_discount_cents: number
+          buyer_email: string | null
         }
         Insert: {
           id?: string
@@ -638,6 +642,7 @@ export type Database = {
           payment_method?: string
           coupon_code?: string | null
           coupon_discount_cents?: number
+          buyer_email?: string | null
         }
         Update: {
           id?: string
@@ -651,6 +656,7 @@ export type Database = {
           payment_method?: string
           coupon_code?: string | null
           coupon_discount_cents?: number
+          buyer_email?: string | null
         }
         Relationships: [
           {

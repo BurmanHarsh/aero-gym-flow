@@ -57,6 +57,7 @@ function PlansPage() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
   const [deletingPlan, setDeletingPlan] = useState<Plan | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
 
   // File upload state
   const [uploading, setUploading] = useState<string | null>(null); // holds planId during upload
@@ -187,7 +188,8 @@ function PlansPage() {
           {plans.map((plan) => (
             <div
               key={plan.id}
-              className="group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card transition hover:border-accent/80 hover:shadow-md"
+              onClick={() => setSelectedPlan(plan)}
+              className="group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card transition hover:border-accent/80 hover:shadow-md cursor-pointer"
             >
               {/* Photo section */}
               <div className="relative h-48 w-full overflow-hidden bg-muted">
@@ -230,7 +232,10 @@ function PlansPage() {
                       variant="secondary"
                       className="gap-1.5 text-xs"
                       disabled={uploading === plan.id}
-                      onClick={() => handlePhotoUploadClick(plan.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePhotoUploadClick(plan.id);
+                      }}
                     >
                       <Upload className="h-3.5 w-3.5" />
                       {uploading === plan.id ? "Uploading..." : "Change Photo"}
@@ -275,7 +280,10 @@ function PlansPage() {
                       size="sm"
                       variant="outline"
                       className="flex-1 gap-1.5 text-xs h-8"
-                      onClick={() => setEditingPlan(plan)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingPlan(plan);
+                      }}
                     >
                       <Edit2 className="h-3.5 w-3.5" /> Edit
                     </Button>
@@ -283,7 +291,10 @@ function PlansPage() {
                       size="sm"
                       variant="destructive"
                       className="flex-1 gap-1.5 text-xs h-8"
-                      onClick={() => setDeletingPlan(plan)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeletingPlan(plan);
+                      }}
                     >
                       <Trash2 className="h-3.5 w-3.5" /> Delete
                     </Button>
@@ -332,7 +343,88 @@ function PlansPage() {
           />
         )}
       </Dialog>
+
+      {/* Plan Details Dialog */}
+      <Dialog open={!!selectedPlan} onOpenChange={(o) => !o && setSelectedPlan(null)}>
+        {selectedPlan && (
+          <PlanDetailDialog
+            plan={selectedPlan}
+            onClose={() => setSelectedPlan(null)}
+          />
+        )}
+      </Dialog>
     </div>
+  );
+}
+
+interface PlanDetailDialogProps {
+  plan: Plan;
+  onClose: () => void;
+}
+
+function PlanDetailDialog({ plan, onClose }: PlanDetailDialogProps) {
+  return (
+    <DialogContent className="max-w-md overflow-hidden p-0 rounded-2xl border border-border bg-card">
+      <div className="relative h-52 w-full overflow-hidden bg-muted">
+        {plan.photo_url ? (
+          <img
+            src={plan.photo_url}
+            alt={plan.name}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div className="flex h-full w-full flex-col items-center justify-center gradient-primary opacity-90">
+            <Dumbbell className="h-12 w-12 text-primary-foreground/80" />
+          </div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/10 to-transparent" />
+      </div>
+
+      <div className="p-6 space-y-4">
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-xl font-bold text-foreground font-display">{plan.name}</h2>
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                plan.active ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive"
+              }`}
+            >
+              <span className={`mr-1 h-1.5 w-1.5 rounded-full ${plan.active ? "bg-success" : "bg-destructive"}`} />
+              {plan.active ? "Active" : "Inactive"}
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 rounded-xl border border-border bg-muted/30 p-4">
+          <div className="space-y-0.5">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Duration</div>
+            <div className="text-sm font-bold text-foreground flex items-center gap-1.5">
+              <Calendar className="h-4 w-4 text-primary shrink-0" />
+              {plan.duration_days} Days
+            </div>
+          </div>
+          <div className="space-y-0.5">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Price</div>
+            <div className="text-sm font-bold text-primary">
+              {fmtMoney(plan.price_cents)}
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <h4 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">About this plan</h4>
+          <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
+            {plan.description || "Access to all primary gym facilities during working hours."}
+          </p>
+        </div>
+
+        <DialogFooter className="pt-2">
+          <Button onClick={onClose} className="w-full gradient-primary text-primary-foreground font-medium shadow-glow">
+            Done
+          </Button>
+        </DialogFooter>
+      </div>
+    </DialogContent>
   );
 }
 
