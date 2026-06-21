@@ -318,7 +318,12 @@ function LandingTab() {
         </div>
 
         <form onSubmit={handleAddBanner} className="rounded-xl border border-border bg-card/40 p-4 space-y-4">
-          <h3 className="text-sm font-bold">Add New Slide</h3>
+          <div className="flex flex-col gap-1">
+            <h3 className="text-sm font-bold">Add New Slide</h3>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              💡 <strong>Tip:</strong> If your banner image already has text/buttons designed into the graphic itself, leave <strong>Slide Title</strong> and <strong>Slide Description</strong> empty. The image will be displayed cleanly and the entire slide will be clickable.
+            </p>
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <Label htmlFor="banner-title">Slide Title</Label>

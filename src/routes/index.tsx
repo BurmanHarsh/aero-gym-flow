@@ -279,49 +279,70 @@ function Landing() {
             <div className="flex h-full">
               {banners.map((banner, idx) => {
                 const isLast = idx === banners.length - 1;
-                return (
-                  <div
-                    key={idx}
-                    className="relative min-w-0 shrink-0 grow-0 basis-full h-full flex items-center"
-                  >
+                const hasText = banner.title && banner.title.trim() !== "";
+                const slideLink = banner.link || (authed ? "/dashboard" : "/auth");
+
+                const slideContent = (
+                  <>
                     {/* Slide background */}
                     <div
                       className="absolute inset-0 bg-cover bg-center"
                       style={{ backgroundImage: `url('${banner.image}')` }}
                     />
-                    {/* Dark gradient overlay — left-to-right so text is readable */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-black/20" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                    {/* Dark gradient overlay — only if there is text overlay to keep readable */}
+                    {hasText && (
+                      <>
+                        <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-black/20" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                      </>
+                    )}
 
                     {/* Slide Content */}
-                    <div className="relative z-10 px-10 sm:px-16 md:px-20 max-w-2xl w-full space-y-3">
-                      <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/20 border border-primary/40 px-2.5 py-1 text-[9px] sm:text-[10px] font-bold text-primary uppercase tracking-widest">
-                        <Flame className="h-2.5 w-2.5" /> Tank Strength & Conditioning
-                      </div>
-                      <h2 className="text-2xl sm:text-4xl md:text-5xl font-extrabold leading-tight text-white drop-shadow-lg">
-                        {banner.title}
-                      </h2>
-                      <p className="text-xs sm:text-sm md:text-base text-slate-300 leading-relaxed max-w-md hidden sm:block">
-                        {banner.description}
-                      </p>
-                      <div className="flex flex-wrap gap-2 pt-1">
-                        <Link
-                          to={authed ? "/dashboard" : "/auth"}
-                          className="inline-flex items-center gap-2 rounded-lg gradient-primary px-5 py-2 sm:px-6 sm:py-2.5 text-xs sm:text-sm font-bold text-primary-foreground shadow-glow transition-all hover:scale-105 hover:brightness-110"
-                        >
-                          {authed ? "Open Portal" : (isLast ? "Join the Gym" : "Get Started")}
-                          <ArrowRight className="h-3.5 w-3.5" />
-                        </Link>
-                        {idx === 0 && !authed && (
-                          <a
-                            href="#plans"
-                            className="hidden sm:inline-flex items-center gap-2 rounded-lg border border-white/30 bg-white/10 backdrop-blur-sm px-5 py-2 text-xs font-semibold text-white hover:bg-white/20 transition-all"
+                    {hasText && (
+                      <div className="relative z-10 px-10 sm:px-16 md:px-20 max-w-2xl w-full space-y-3">
+                        <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/20 border border-primary/40 px-2.5 py-1 text-[9px] sm:text-[10px] font-bold text-primary uppercase tracking-widest">
+                          <Flame className="h-2.5 w-2.5" /> Tank Strength & Conditioning
+                        </div>
+                        <h2 className="text-2xl sm:text-4xl md:text-5xl font-extrabold leading-tight text-white drop-shadow-lg">
+                          {banner.title}
+                        </h2>
+                        <p className="text-xs sm:text-sm md:text-base text-slate-300 leading-relaxed max-w-md hidden sm:block">
+                          {banner.description}
+                        </p>
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          <Link
+                            to={slideLink}
+                            className="inline-flex items-center gap-2 rounded-lg gradient-primary px-5 py-2 sm:px-6 sm:py-2.5 text-xs sm:text-sm font-bold text-primary-foreground shadow-glow transition-all hover:scale-105 hover:brightness-110"
                           >
-                            View Plans <ChevronDown className="h-3.5 w-3.5" />
-                          </a>
-                        )}
+                            {authed ? "Open Portal" : (isLast ? "Join the Gym" : "Get Started")}
+                            <ArrowRight className="h-3.5 w-3.5" />
+                          </Link>
+                          {idx === 0 && !authed && (
+                            <a
+                              href="#plans"
+                              className="hidden sm:inline-flex items-center gap-2 rounded-lg border border-white/30 bg-white/10 backdrop-blur-sm px-5 py-2 text-xs font-semibold text-white hover:bg-white/20 transition-all"
+                            >
+                              View Plans <ChevronDown className="h-3.5 w-3.5" />
+                            </a>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    )}
+                  </>
+                );
+
+                return (
+                  <div
+                    key={idx}
+                    className="relative min-w-0 shrink-0 grow-0 basis-full h-full flex items-center"
+                  >
+                    {!hasText ? (
+                      <Link to={slideLink} className="absolute inset-0 z-20 block w-full h-full cursor-pointer">
+                        {slideContent}
+                      </Link>
+                    ) : (
+                      slideContent
+                    )}
                   </div>
                 );
               })}
@@ -629,7 +650,7 @@ function Landing() {
             </div>
 
             {/* Embedded Google Map */}
-            <div className="aspect-video w-full overflow-hidden rounded-2xl border border-border bg-card shadow-glow md:aspect-[4/3] min-h-[280px]">
+            <div className="w-full overflow-hidden rounded-2xl border border-border bg-card shadow-glow h-[280px] md:h-auto md:aspect-[4/3]">
               <iframe
                 src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3528.2713606622435!2d78.83082147610058!3d27.791470522197593!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x39751904b0e512a7%3A0xf120924df11203d3!2sTaNK%20By%20TAPAN!5e0!3m2!1sen!2sin!4v1718970000000!5m2!1sen!2sin"
                 width="100%"
