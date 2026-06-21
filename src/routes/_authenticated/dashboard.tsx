@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { getAttendanceTrend, getDashboardStats, getRevenueTrend } from "@/lib/aerogym/analytics.functions";
 import { autoExpireMemberships, sendExpiryReminders } from "@/lib/aerogym/gym.functions";
 import { StatCard } from "@/components/stat-card";
@@ -109,7 +109,7 @@ function Dashboard() {
   const a = useQuery({ queryKey: ["attendance-14"], queryFn: () => att() });
 
   // Run auto-expiry + reminder emails once per day per browser session
-  useState(() => {
+  useEffect(() => {
     if (typeof window === "undefined") return;
     const today = new Date().toISOString().slice(0, 10);
     const lastRun = localStorage.getItem("tbt_daily_tasks");
@@ -128,7 +128,8 @@ function Dashboard() {
         }
       }).catch(() => {});
     }, 3000);
-  });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
@@ -164,13 +165,20 @@ function Dashboard() {
       </div>
 
       <div className="relative z-10">
-        {me.isStaff ? (
+        {me.isAdmin ? (
           <AdminDashboard
             stats={dashboardStats}
             attendance={attendance}
             recentInvoices={recentInvoicesQuery.data ?? []}
             inflowLoading={recentInvoicesQuery.isLoading}
             onSelectPlan={setSelectedPlan}
+          />
+        ) : me.roles.includes("front_desk") ? (
+          <FrontDeskDashboard
+            stats={dashboardStats}
+            attendance={attendance}
+            recentInvoices={recentInvoicesQuery.data ?? []}
+            inflowLoading={recentInvoicesQuery.isLoading}
           />
         ) : (
           <MemberDashboard
@@ -314,14 +322,20 @@ function AdminDashboard({
             <Link to="/expenses" className="block">
               <StatCard label="Net profit" value={expensesQuery.isLoading ? "Loading..." : fmtMoney(netProfitCents)} icon={TrendingUp} tone={netProfitCents >= 0 ? "success" : "destructive"} hint="Revenue minus Expenses" />
             </Link>
-            <StatCard label="Collection rate" value={d ? `${d.collectionRate.toFixed(0)}%` : "-"} icon={TrendingUp} tone="success" />
+            <Link to="/billing" className="block">
+              <StatCard label="Collection rate" value={d ? `${d.collectionRate.toFixed(0)}%` : "-"} icon={TrendingUp} tone="success" hint="Paid vs total" />
+            </Link>
             <Link to="/billing" className="block">
               <StatCard label="Pending invoices" value={d?.pendingInvoices ?? "-"} icon={Receipt} tone="warning" />
             </Link>
           </>
         ) : null}
-        <StatCard label="Expiring soon" value={d?.expiringSoon ?? "-"} icon={AlertTriangle} tone="warning" hint="Next 7 days" />
-        <StatCard label="Check-ins today" value={d?.checkInsToday ?? "-"} icon={QrCode} tone="info" />
+        <Link to="/members" className="block">
+          <StatCard label="Expiring soon" value={d?.expiringSoon ?? "-"} icon={AlertTriangle} tone="warning" hint="Next 7 days" />
+        </Link>
+        <Link to="/attendance" className="block">
+          <StatCard label="Check-ins today" value={d?.checkInsToday ?? "-"} icon={QrCode} tone="info" hint="Live floor count" />
+        </Link>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-3">
@@ -661,7 +675,7 @@ function MemberDashboard({
       if (!member?.id) return [];
       const { data, error } = await supabase
         .from("invoices")
-        .select("*, payments(method, reference)")
+        .select("*, payments(method, reference), membership_plans(name)")
         .eq("member_id", member.id)
         .order("issued_at", { ascending: false });
       if (error) throw error;
@@ -747,9 +761,15 @@ function MemberDashboard({
               </div>
             )}
             <div className="pt-2">
-              <Button asChild size="sm" className="w-full gradient-primary text-primary-foreground shadow-glow h-8 text-xs">
-                <Link to="/attendance">Go to Check-in</Link>
-              </Button>
+              {member && member.status !== "active" ? (
+                <div className="rounded-xl bg-destructive/10 border border-destructive/20 px-3 py-2 text-center text-xs text-destructive font-medium">
+                  Membership inactive — renew to check in
+                </div>
+              ) : (
+                <Button asChild size="sm" className="w-full gradient-primary text-primary-foreground shadow-glow h-8 text-xs">
+                  <Link to="/attendance">Go to Check-in</Link>
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -1088,11 +1108,50 @@ function BroadcastManager() {
 
 function ReceiptModal({ invoice, member, onClose }: { invoice: any; member: any; onClose: () => void }) {
   const payment = invoice.payments?.[0];
+  const description = invoice.membership_plans?.name ?? "Gym Membership";
 
   const handlePrint = () => {
-    if (typeof window !== "undefined") {
-      window.print();
-    }
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+    const receiptDate = new Date(invoice.paid_at || invoice.issued_at).toLocaleString();
+    const total = `Rs ${(invoice.total_cents / 100).toLocaleString()}`;
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Receipt ${invoice.invoice_number} - Tank by Tapan</title>
+          <style>
+            body { font-family: ui-sans-serif, system-ui, sans-serif; background: #fff; color: #111; padding: 32px; max-width: 380px; margin: 0 auto; }
+            h1 { font-size: 18px; font-weight: 800; text-align: center; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+            .sub { font-size: 11px; text-align: center; color: #666; margin-bottom: 20px; }
+            .divider { border-top: 1px dashed #ccc; margin: 12px 0; }
+            .row { display: flex; justify-content: space-between; font-size: 12px; margin: 6px 0; }
+            .label { color: #666; }
+            .value { font-weight: 600; }
+            .total-row { display: flex; justify-content: space-between; font-size: 15px; font-weight: 800; margin-top: 12px; padding-top: 10px; border-top: 2px solid #111; }
+            .total-row .value { color: #0d9488; }
+            .footer { text-align: center; font-size: 10px; color: #888; margin-top: 20px; text-transform: uppercase; letter-spacing: 1px; }
+            @media print { body { padding: 0; } }
+          </style>
+        </head>
+        <body>
+          <h1>Tank by Tapan</h1>
+          <div class="sub">Payment Receipt</div>
+          <div class="divider"></div>
+          <div class="row"><span class="label">Receipt No:</span><span class="value">${invoice.invoice_number}</span></div>
+          <div class="row"><span class="label">Date:</span><span class="value">${receiptDate}</span></div>
+          <div class="row"><span class="label">Member:</span><span class="value">${member?.full_name ?? "—"}</span></div>
+          <div class="row"><span class="label">Member Code:</span><span class="value">${member?.member_code ?? "—"}</span></div>
+          <div class="divider"></div>
+          <div class="row"><span class="label">Description:</span><span class="value">${description}</span></div>
+          ${payment ? `<div class="row"><span class="label">Payment Mode:</span><span class="value">${payment.method?.toUpperCase()}</span></div>` : ""}
+          ${payment?.reference ? `<div class="row"><span class="label">Ref No:</span><span class="value">${payment.reference}</span></div>` : ""}
+          <div class="total-row"><span>Total Paid</span><span class="value">${total}</span></div>
+          <div class="footer">Thank you for training with us!</div>
+          <script>window.onload = function() { window.print(); setTimeout(function() { window.close(); }, 500); }<\/script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   return (
@@ -1126,7 +1185,7 @@ function ReceiptModal({ invoice, member, onClose }: { invoice: any; member: any;
           <span>Amount</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-muted-foreground">Gym Membership Renewal</span>
+          <span className="text-muted-foreground">{description}</span>
           <span>{fmtMoney(invoice.total_cents)}</span>
         </div>
         

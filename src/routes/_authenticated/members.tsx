@@ -76,10 +76,18 @@ function MembersPage() {
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [deletingMember, setDeletingMember] = useState<Member | null>(null);
 
-  async function load() {
+  const PAGE_SIZE = 100;
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+
+  async function load(reset = true) {
     setLoading(true);
+    const currentPage = reset ? 0 : page;
+    const from = reset ? 0 : currentPage * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
     const [m, p, prof] = await Promise.all([
-      supabase.from("members").select("*").order("created_at", { ascending: false }).limit(200),
+      supabase.from("members").select("*").order("created_at", { ascending: false }).range(from, to),
       supabase.from("membership_plans").select("*").eq("active", true),
       supabase.from("profiles").select("email, avatar_url"),
     ]);
@@ -99,12 +107,23 @@ function MembersPage() {
         photo_url: member.photo_url || profileAvatar || null,
       };
     });
-    
-    setRows(merged);
+
+    if (reset) {
+      setRows(merged);
+      setPage(1);
+    } else {
+      setRows((prev) => {
+        const ids = new Set(prev.map((x) => x.id));
+        const next = merged.filter((x) => !ids.has(x.id));
+        return [...prev, ...next];
+      });
+      setPage(currentPage + 1);
+    }
+
+    setHasMore((m.data ?? []).length === PAGE_SIZE);
     setPlans((p.data ?? []) as Plan[]);
     setPlanError(p.error?.message ?? "");
 
-    // Also update selectedMember state with the new details if it is currently open
     setSelectedMember((current) => {
       if (!current) return null;
       const found = merged.find((x) => x.id === current.id);
@@ -114,7 +133,7 @@ function MembersPage() {
     setLoading(false);
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(true); }, []);
 
   const filtered = rows.filter((r) => {
     const t = q.toLowerCase();
@@ -128,7 +147,7 @@ function MembersPage() {
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Members</h1>
-          <p className="text-sm text-muted-foreground">{rows.length} total · {rows.filter((r) => r.status === "active").length} active</p>
+          <p className="text-sm text-muted-foreground">{rows.length}{hasMore ? "+" : ""} total · {rows.filter((r) => r.status === "active").length} active</p>
         </div>
         {isStaff && (
           <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (next) load(); }}>
@@ -210,6 +229,14 @@ function MembersPage() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {hasMore && !loading && !q && (
+          <div className="flex justify-center border-t border-border p-4">
+            <Button variant="outline" size="sm" onClick={() => load(false)} className="text-xs">
+              Load more members
+            </Button>
           </div>
         )}
       </div>

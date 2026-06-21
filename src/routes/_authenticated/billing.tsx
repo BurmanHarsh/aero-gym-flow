@@ -52,6 +52,9 @@ function BillingPage() {
   const isStaff = me.isAdmin;
   const [issueOpen, setIssueOpen] = useState(false);
   const [plans, setPlans] = useState<Plan[]>([]);
+  const PAGE_SIZE = 100;
+  const [billingPage, setBillingPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
 
   useEffect(() => {
     supabase.from("membership_plans").select("*").eq("active", true).then(({ data }) => {
@@ -169,7 +172,7 @@ function BillingPage() {
     printWindow.document.close();
   }
 
-  async function load() {
+  async function load(reset = true) {
     if (me.loading) return;
     setLoading(true);
     const isStaff = me.isAdmin || me.roles.includes("front_desk");
@@ -177,13 +180,27 @@ function BillingPage() {
       setLoading(false);
       return;
     }
-    let q = supabase.from("invoices").select("*, member:members(full_name, member_code, email)").order("issued_at", { ascending: false }).limit(200);
+    const currentPage = reset ? 0 : billingPage;
+    const from = reset ? 0 : currentPage * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+    let q = supabase.from("invoices").select("*, member:members(full_name, member_code, email)").order("issued_at", { ascending: false }).range(from, to);
     if (tab !== "all") q = q.eq("status", tab);
     const { data } = await q;
-    setRows((data ?? []) as Invoice[]);
+    const fetched = (data ?? []) as Invoice[];
+    if (reset) {
+      setRows(fetched);
+      setBillingPage(1);
+    } else {
+      setRows((prev) => {
+        const ids = new Set(prev.map((x) => x.id));
+        return [...prev, ...fetched.filter((x) => !ids.has(x.id))];
+      });
+      setBillingPage(currentPage + 1);
+    }
+    setHasMore(fetched.length === PAGE_SIZE);
     setLoading(false);
   }
-  useEffect(() => { load(); }, [tab, me.loading, me.isAdmin, me.user?.id]);
+  useEffect(() => { load(true); }, [tab, me.loading, me.isAdmin, me.user?.id]);
 
   const totals = {
     pending: rows.filter(r => r.status === "pending").reduce((s, r) => s + r.total_cents, 0),
@@ -250,8 +267,16 @@ function BillingPage() {
         </div>}
       </div>
 
+      {hasMore && !loading && (
+        <div className="flex justify-center">
+          <Button variant="outline" size="sm" onClick={() => load(false)} className="text-xs">
+            Load more invoices
+          </Button>
+        </div>
+      )}
+
       <Dialog open={!!active} onOpenChange={(o) => !o && setActive(null)}>
-        {active && <PaymentDialog invoice={active} onClose={() => { setActive(null); load(); }} />}
+        {active && <PaymentDialog invoice={active} onClose={() => { setActive(null); load(true); }} />}
       </Dialog>
     </div>
   );

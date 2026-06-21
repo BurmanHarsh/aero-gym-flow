@@ -7,14 +7,14 @@ import { sendContactMessage } from "@/lib/aerogym/email.functions";
 import { toast } from "sonner";
 import {
   ArrowRight,
-  Flame,
-  Trophy,
-  Sparkles,
   Check,
   ChevronDown,
-  Activity,
   ChevronLeft,
   ChevronRight,
+  Flame,
+  Trophy,
+  Activity,
+  Sparkles,
   MapPin,
   Mail,
   Phone,
@@ -63,7 +63,11 @@ interface Banner {
 }
 
 function Landing() {
-  const [authed, setAuthed] = useState(false);
+  const [authed, setAuthed] = useState<boolean>(() => {
+    // Pre-seed from sessionStorage to avoid race condition on first render
+    if (typeof window === "undefined") return false;
+    return sessionStorage.getItem("tbt_authed") === "1";
+  });
   const sendQuery = useServerFn(sendContactMessage);
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
@@ -78,10 +82,12 @@ function Landing() {
     setSendingQuery(true);
     try {
       await sendQuery({
-        name: contactName,
-        email: contactEmail,
-        phone: contactPhone || undefined,
-        message: contactMessage,
+        data: {
+          name: contactName,
+          email: contactEmail,
+          phone: contactPhone || undefined,
+          message: contactMessage,
+        },
       });
       toast.success("Query sent successfully! We'll contact you soon.");
       setContactName("");
@@ -131,7 +137,12 @@ function Landing() {
   }, [emblaApi, onSelect]);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setAuthed(!!data.session));
+    supabase.auth.getSession().then(({ data }) => {
+      const isAuthed = !!data.session;
+      setAuthed(isAuthed);
+      if (isAuthed) sessionStorage.setItem("tbt_authed", "1");
+      else sessionStorage.removeItem("tbt_authed");
+    });
 
     async function loadPlans() {
       try {

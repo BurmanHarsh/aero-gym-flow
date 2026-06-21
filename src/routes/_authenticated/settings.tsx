@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Sun, Moon, Monitor, LogOut, ShieldCheck, Bell, UserCircle2, Palette, Upload, Layout } from "lucide-react";
+import { Sun, Moon, Monitor, LogOut, ShieldCheck, Bell, UserCircle2, Palette, Upload } from "lucide-react";
 import * as Icons from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -39,6 +39,7 @@ function SettingsPage() {
 
   async function logout() {
     await supabase.auth.signOut();
+    sessionStorage.removeItem("tbt_authed");
     toast.success("Signed out");
     navigate({ to: "/auth", replace: true });
   }
@@ -52,7 +53,7 @@ function SettingsPage() {
 
       <div className="grid gap-6 md:grid-cols-[200px_1fr]">
         <nav className="flex gap-1 overflow-x-auto rounded-2xl border border-border bg-card p-2 md:flex-col">
-          {TABS.filter((t) => t.id !== "landing" || me.isAdmin).map((t) => {
+          {TABS.map((t) => {
             const Icon = t.icon;
             const active = tab === t.id;
             return (
@@ -183,6 +184,9 @@ function AccountTab({ me }: { me: ReturnType<typeof useCurrentUser> }) {
     toast.success("Password updated"); setPw("");
   }
 
+  const isOAuthUser = me.user?.app_metadata?.provider === "google" ||
+    (me.user?.app_metadata?.providers as string[] | undefined)?.includes("google");
+
   return (
     <div className="space-y-8" suppressHydrationWarning>
       <div>
@@ -197,12 +201,19 @@ function AccountTab({ me }: { me: ReturnType<typeof useCurrentUser> }) {
         <div><Label>Phone</Label><Input value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" suppressHydrationWarning /></div>
         <Button type="submit">Save profile</Button>
       </form>
+
       <div className="border-t border-border pt-6">
         <h2 className="text-base font-semibold">Change password</h2>
-        <form onSubmit={changePassword} className="mt-3 space-y-3">
-          <div><Label>New password</Label><Input type="password" minLength={6} value={pw} onChange={(e) => setPw(e.target.value)} required autoComplete="new-password" suppressHydrationWarning /></div>
-          <Button type="submit" disabled={!pw}>Update password</Button>
-        </form>
+        {isOAuthUser ? (
+          <div className="mt-3 rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+            You signed in with <strong>Google</strong>. Password management is handled by Google — you cannot set a separate password here.
+          </div>
+        ) : (
+          <form onSubmit={changePassword} className="mt-3 space-y-3">
+            <div><Label>New password</Label><Input type="password" minLength={6} value={pw} onChange={(e) => setPw(e.target.value)} required autoComplete="new-password" suppressHydrationWarning /></div>
+            <Button type="submit" disabled={!pw}>Update password</Button>
+          </form>
+        )}
       </div>
     </div>
   );

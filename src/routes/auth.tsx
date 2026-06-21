@@ -31,7 +31,7 @@ function AuthPage() {
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       if (session && !redirected) {
         redirected = true;
-        window.location.href = "/dashboard";
+        window.location.replace("/dashboard");
       }
     });
     return () => sub.subscription.unsubscribe();

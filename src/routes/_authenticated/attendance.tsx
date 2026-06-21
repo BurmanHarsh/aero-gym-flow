@@ -439,7 +439,7 @@ function AttendancePage() {
             </p>
             <div className="w-full text-[10px] text-[#7b8299] bg-[#0b1020] border border-[#1f2747] rounded-lg p-2.5 space-y-1 font-mono">
               <div className="flex justify-between"><span>Check-in URL:</span> <span className="text-white truncate max-w-[200px]">{scanUrl}</span></div>
-              <div className="flex justify-between"><span>Required Secret:</span> <span className="text-white">key=gate_wall_static_qr</span></div>
+              <div className="flex justify-between"><span>Required Secret:</span> <span className="text-white">{new URL(scanUrl).searchParams.get("key")}</span></div>
             </div>
           </div>
           <DialogFooter className="grid grid-cols-2 gap-2">
