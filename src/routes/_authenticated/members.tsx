@@ -290,6 +290,7 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [plan_id, setPlanId] = useState<string>(plans[0]?.id ?? "");
+  const [startDate, setStartDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [paymentMethod, setPaymentMethod] = useState<string>("cash");
   const [busy, setBusy] = useState(false);
 
@@ -365,19 +366,6 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
     e.preventDefault();
     setBusy(true);
 
-    // Email is mandatory and must belong to a registered Google account
-    if (!email.trim()) {
-      toast.error("Email is required. The member must have a Google account on this app.");
-      setBusy(false);
-      return;
-    }
-    const profileMatch = allProfiles.find((p) => p.email.toLowerCase() === email.trim().toLowerCase());
-    if (!profileMatch) {
-      toast.error("This email has no registered Google account. Ask the member to sign in with Google first.");
-      setBusy(false);
-      return;
-    }
-
     const cleanPhone = phone.replace(/\D/g, "");
     if (cleanPhone.length !== 10) {
       toast.error("Invalid phone number. Must be exactly 10 digits.");
@@ -424,8 +412,9 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
 
     const { data: userData } = await supabase.auth.getUser();
     const userId = userData.user?.id ?? null;
+    // Use the admin-chosen start date for expiry calculation
     const expires_at = plan
-      ? new Date(Date.now() + plan.duration_days * 86400000).toISOString().slice(0, 10)
+      ? new Date(new Date(startDate).getTime() + plan.duration_days * 86400000).toISOString().slice(0, 10)
       : null;
     const { error, data } = await supabase
       .from("members")
@@ -475,6 +464,7 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
           to: email,
           name: full_name,
           plan: plan?.name,
+          startsAt: plan ? new Date(startDate).toLocaleDateString("en-IN") : undefined,
           expiresAt: expires_at ?? undefined
         }
       }).catch((err) => {
@@ -566,12 +556,6 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
               )}
             </div>
           </div>
-          {email.length > 0 && !emailVerified && (
-            <p className="mt-1 text-[11px] text-amber-400">⚠ No Google account found with this email. The member must log in first.</p>
-          )}
-          {emailVerified && (
-            <p className="mt-1 text-[11px] text-emerald-400">✓ Verified — matched to a registered Google account.</p>
-          )}
           {showSuggestions && email.length >= 1 && (
             (() => {
               const filteredProfiles = allProfiles.filter(p => p.email.toLowerCase().includes(email.toLowerCase()));
@@ -596,6 +580,9 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
               );
             })()
           )}
+          {emailVerified && (
+            <p className="mt-1 text-[11px] text-emerald-400">✓ Matched to a registered account.</p>
+          )}
         </div>
         <div>
           <Label>Plan</Label>
@@ -616,6 +603,21 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
             <p className="mt-1 text-xs text-muted-foreground">Add a membership plan from the admin dashboard first.</p>
           )}
         </div>
+        {plan_id && (
+          <div>
+            <Label htmlFor="member-start-date">Membership Start Date</Label>
+            <Input
+              id="member-start-date"
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="mt-1"
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Expiry will be calculated as: start date + plan duration ({plan?.duration_days} days)
+            </p>
+          </div>
+        )}
         <div>
           <Label>Coupon Code (Optional)</Label>
           <div className="flex gap-2 mt-1">

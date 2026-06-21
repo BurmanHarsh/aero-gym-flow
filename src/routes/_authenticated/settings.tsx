@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Sun, Moon, Monitor, LogOut, ShieldCheck, Bell, UserCircle2, Palette, Upload } from "lucide-react";
+import { Sun, Moon, Monitor, LogOut, ShieldCheck, Bell, UserCircle2, Palette, Upload, Layout } from "lucide-react";
+import * as Icons from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
@@ -51,7 +52,7 @@ function SettingsPage() {
 
       <div className="grid gap-6 md:grid-cols-[200px_1fr]">
         <nav className="flex gap-1 overflow-x-auto rounded-2xl border border-border bg-card p-2 md:flex-col">
-          {TABS.map((t) => {
+          {TABS.filter((t) => t.id !== "landing" || me.isAdmin).map((t) => {
             const Icon = t.icon;
             const active = tab === t.id;
             return (
@@ -336,3 +337,4 @@ function SecurityTab({ onLogout }: { onLogout: () => void }) {
     </div>
   );
 }
+

@@ -14,9 +14,11 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedScanCheckinRouteImport } from './routes/_authenticated/scan-checkin'
+import { Route as AuthenticatedRulesRouteImport } from './routes/_authenticated/rules'
 import { Route as AuthenticatedPlansRouteImport } from './routes/_authenticated/plans'
 import { Route as AuthenticatedMembersRouteImport } from './routes/_authenticated/members'
 import { Route as AuthenticatedLeadsRouteImport } from './routes/_authenticated/leads'
+import { Route as AuthenticatedLandingRouteImport } from './routes/_authenticated/landing'
 import { Route as AuthenticatedInventoryRouteImport } from './routes/_authenticated/inventory'
 import { Route as AuthenticatedExpensesRouteImport } from './routes/_authenticated/expenses'
 import { Route as AuthenticatedEquipmentRouteImport } from './routes/_authenticated/equipment'
@@ -52,6 +54,11 @@ const AuthenticatedScanCheckinRoute =
     path: '/scan-checkin',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedRulesRoute = AuthenticatedRulesRouteImport.update({
+  id: '/rules',
+  path: '/rules',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedPlansRoute = AuthenticatedPlansRouteImport.update({
   id: '/plans',
   path: '/plans',
@@ -65,6 +72,11 @@ const AuthenticatedMembersRoute = AuthenticatedMembersRouteImport.update({
 const AuthenticatedLeadsRoute = AuthenticatedLeadsRouteImport.update({
   id: '/leads',
   path: '/leads',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedLandingRoute = AuthenticatedLandingRouteImport.update({
+  id: '/landing',
+  path: '/landing',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedInventoryRoute = AuthenticatedInventoryRouteImport.update({
@@ -125,9 +137,11 @@ export interface FileRoutesByFullPath {
   '/equipment': typeof AuthenticatedEquipmentRoute
   '/expenses': typeof AuthenticatedExpensesRoute
   '/inventory': typeof AuthenticatedInventoryRoute
+  '/landing': typeof AuthenticatedLandingRoute
   '/leads': typeof AuthenticatedLeadsRoute
   '/members': typeof AuthenticatedMembersRoute
   '/plans': typeof AuthenticatedPlansRoute
+  '/rules': typeof AuthenticatedRulesRoute
   '/scan-checkin': typeof AuthenticatedScanCheckinRoute
   '/settings': typeof AuthenticatedSettingsRoute
 }
@@ -143,9 +157,11 @@ export interface FileRoutesByTo {
   '/equipment': typeof AuthenticatedEquipmentRoute
   '/expenses': typeof AuthenticatedExpensesRoute
   '/inventory': typeof AuthenticatedInventoryRoute
+  '/landing': typeof AuthenticatedLandingRoute
   '/leads': typeof AuthenticatedLeadsRoute
   '/members': typeof AuthenticatedMembersRoute
   '/plans': typeof AuthenticatedPlansRoute
+  '/rules': typeof AuthenticatedRulesRoute
   '/scan-checkin': typeof AuthenticatedScanCheckinRoute
   '/settings': typeof AuthenticatedSettingsRoute
 }
@@ -163,9 +179,11 @@ export interface FileRoutesById {
   '/_authenticated/equipment': typeof AuthenticatedEquipmentRoute
   '/_authenticated/expenses': typeof AuthenticatedExpensesRoute
   '/_authenticated/inventory': typeof AuthenticatedInventoryRoute
+  '/_authenticated/landing': typeof AuthenticatedLandingRoute
   '/_authenticated/leads': typeof AuthenticatedLeadsRoute
   '/_authenticated/members': typeof AuthenticatedMembersRoute
   '/_authenticated/plans': typeof AuthenticatedPlansRoute
+  '/_authenticated/rules': typeof AuthenticatedRulesRoute
   '/_authenticated/scan-checkin': typeof AuthenticatedScanCheckinRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
 }
@@ -183,9 +201,11 @@ export interface FileRouteTypes {
     | '/equipment'
     | '/expenses'
     | '/inventory'
+    | '/landing'
     | '/leads'
     | '/members'
     | '/plans'
+    | '/rules'
     | '/scan-checkin'
     | '/settings'
   fileRoutesByTo: FileRoutesByTo
@@ -201,9 +221,11 @@ export interface FileRouteTypes {
     | '/equipment'
     | '/expenses'
     | '/inventory'
+    | '/landing'
     | '/leads'
     | '/members'
     | '/plans'
+    | '/rules'
     | '/scan-checkin'
     | '/settings'
   id:
@@ -220,9 +242,11 @@ export interface FileRouteTypes {
     | '/_authenticated/equipment'
     | '/_authenticated/expenses'
     | '/_authenticated/inventory'
+    | '/_authenticated/landing'
     | '/_authenticated/leads'
     | '/_authenticated/members'
     | '/_authenticated/plans'
+    | '/_authenticated/rules'
     | '/_authenticated/scan-checkin'
     | '/_authenticated/settings'
   fileRoutesById: FileRoutesById
@@ -270,6 +294,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedScanCheckinRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/rules': {
+      id: '/_authenticated/rules'
+      path: '/rules'
+      fullPath: '/rules'
+      preLoaderRoute: typeof AuthenticatedRulesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/plans': {
       id: '/_authenticated/plans'
       path: '/plans'
@@ -289,6 +320,13 @@ declare module '@tanstack/react-router' {
       path: '/leads'
       fullPath: '/leads'
       preLoaderRoute: typeof AuthenticatedLeadsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/landing': {
+      id: '/_authenticated/landing'
+      path: '/landing'
+      fullPath: '/landing'
+      preLoaderRoute: typeof AuthenticatedLandingRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/inventory': {
@@ -367,9 +405,11 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedEquipmentRoute: typeof AuthenticatedEquipmentRoute
   AuthenticatedExpensesRoute: typeof AuthenticatedExpensesRoute
   AuthenticatedInventoryRoute: typeof AuthenticatedInventoryRoute
+  AuthenticatedLandingRoute: typeof AuthenticatedLandingRoute
   AuthenticatedLeadsRoute: typeof AuthenticatedLeadsRoute
   AuthenticatedMembersRoute: typeof AuthenticatedMembersRoute
   AuthenticatedPlansRoute: typeof AuthenticatedPlansRoute
+  AuthenticatedRulesRoute: typeof AuthenticatedRulesRoute
   AuthenticatedScanCheckinRoute: typeof AuthenticatedScanCheckinRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
 }
@@ -384,9 +424,11 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedEquipmentRoute: AuthenticatedEquipmentRoute,
   AuthenticatedExpensesRoute: AuthenticatedExpensesRoute,
   AuthenticatedInventoryRoute: AuthenticatedInventoryRoute,
+  AuthenticatedLandingRoute: AuthenticatedLandingRoute,
   AuthenticatedLeadsRoute: AuthenticatedLeadsRoute,
   AuthenticatedMembersRoute: AuthenticatedMembersRoute,
   AuthenticatedPlansRoute: AuthenticatedPlansRoute,
+  AuthenticatedRulesRoute: AuthenticatedRulesRoute,
   AuthenticatedScanCheckinRoute: AuthenticatedScanCheckinRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
 }

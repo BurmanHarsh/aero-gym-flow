@@ -23,6 +23,8 @@ import {
   Plus,
   Award,
   Percent,
+  Scale,
+  Layout,
 } from "lucide-react";
 import { useState, type ReactNode, useEffect, useRef } from "react";
 import { useCurrentUser } from "@/hooks/use-current-user";
@@ -44,18 +46,21 @@ const PRIMARY: NavItem[] = [
   { to: "/inventory", label: "Inventory", icon: Package },
   { to: "/plans", label: "Plans", icon: Award },
   { to: "/billing", label: "Billing", icon: Receipt },
+  { to: "/rules", label: "Rules", icon: Scale },
 ];
 const ADMIN: NavItem[] = [
   { to: "/employees", label: "Employees", icon: UsersRound, adminOnly: true },
   { to: "/expenses", label: "Expenses", icon: Wallet, adminOnly: true },
   { to: "/coupons", label: "Coupons", icon: Percent, adminOnly: true },
   { to: "/audit", label: "Audit logs", icon: ShieldCheck, adminOnly: true },
+  { to: "/landing", label: "Landing Page", icon: Layout, adminOnly: true },
 ];
 
 const MOBILE_TABS: NavItem[] = [
   { to: "/dashboard", label: "Home", icon: LayoutDashboard },
   { to: "/attendance", label: "Check-in", icon: QrCode },
   { to: "/members", label: "Members", icon: Users },
+  { to: "/rules", label: "Rules", icon: Scale },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -70,12 +75,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   const visible = (item: NavItem) => {
     if (me.isAdmin) return true;
     if (me.roles.includes("front_desk")) {
-      // Front desk can only view Dashboard, Members, Inventory, Settings, Plans
-      const allowed = ["/dashboard", "/members", "/inventory","/plans", "/settings"];
+      // Front desk can only view Dashboard, Members, Inventory, Settings, Plans, Rules
+      const allowed = ["/dashboard", "/members", "/inventory", "/plans", "/settings", "/rules"];
       return allowed.includes(item.to);
     }
-    // Regular members can only view Dashboard, Attendance, Inventory, Settings, Plans
-    const allowed = ["/dashboard", "/attendance", "/inventory", "/settings", "/plans"];
+    // Regular members can only view Dashboard, Attendance, Inventory, Settings, Plans, Rules
+    const allowed = ["/dashboard", "/attendance", "/inventory", "/settings", "/plans", "/rules"];
     return allowed.includes(item.to);
   };
 

@@ -80,15 +80,16 @@ const shell = (title: string, body: string) => `
 
 export const sendWelcomeEmail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { to: string; name: string; plan?: string; expiresAt?: string }) =>
-    z.object({ to: z.string().email(), name: z.string().min(1), plan: z.string().optional(), expiresAt: z.string().optional() }).parse(d),
+  .inputValidator((d: { to: string; name: string; plan?: string; startsAt?: string; expiresAt?: string }) =>
+    z.object({ to: z.string().email(), name: z.string().min(1), plan: z.string().optional(), startsAt: z.string().optional(), expiresAt: z.string().optional() }).parse(d),
   )
   .handler(async ({ data }) => {
     const from = "Tank by Tapan <welcome@tankbytapan.in>";
     const body = `
       <p>Hi ${data.name}, welcome to the gym! Your membership is now active.</p>
       ${data.plan ? `<p><strong>Plan:</strong> ${data.plan}</p>` : ""}
-      ${data.expiresAt ? `<p><strong>Valid until:</strong> ${data.expiresAt}</p>` : ""}
+      ${data.startsAt ? `<p><strong>Membership Start Date:</strong> ${data.startsAt}</p>` : ""}
+      ${data.expiresAt ? `<p><strong>Valid Until:</strong> ${data.expiresAt}</p>` : ""}
       <p>See you on the floor 💪</p>`;
     return send(from, data.to, "Welcome to the gym 🎉", shell(`Welcome, ${data.name}!`, body));
   });
@@ -403,4 +404,29 @@ export const sendInventorySaleEmail = createServerFn({ method: "POST" })
       `Purchase Receipt · ${new Date().toLocaleDateString("en-IN")}`,
       shell("Receipt for your purchase", body)
     );
+  });
+
+export const sendContactMessage = createServerFn({ method: "POST" })
+  .inputValidator((d: { name: string; email: string; phone?: string; message: string }) =>
+    z.object({
+      name: z.string().min(1, "Name is required"),
+      email: z.string().email("Invalid email address"),
+      phone: z.string().optional(),
+      message: z.string().min(10, "Message must be at least 10 characters"),
+    }).parse(d)
+  )
+  .handler(async ({ data }) => {
+    const from = "Tank Contact Form <contact@tankbytapan.in>";
+    const to = "tankyado@gmail.com"; // Admin's email
+    const body = `
+      <p>You have received a new contact inquiry from the gym website.</p>
+      <div style="background:#1f2747; padding:16px; border-radius:8px; margin:16px 0; border:1px solid #2e3860;">
+        <p style="margin: 4px 0; color:#e6e9f2;"><strong>Name:</strong> ${data.name}</p>
+        <p style="margin: 4px 0; color:#e6e9f2;"><strong>Email:</strong> ${data.email}</p>
+        ${data.phone ? `<p style="margin: 4px 0; color:#e6e9f2;"><strong>Phone:</strong> ${data.phone}</p>` : ""}
+        <p style="margin: 12px 0 4px; color:#a855f7; font-weight:bold;">Message:</p>
+        <p style="margin: 0; white-space: pre-wrap; font-style: italic; color:#c9cfe0;">"${data.message}"</p>
+      </div>
+    `;
+    return send(from, to, `New Contact Query from ${data.name}`, shell("Contact Form Submission", body));
   });

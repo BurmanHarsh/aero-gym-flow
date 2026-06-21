@@ -1,20 +1,26 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import useEmblaCarousel from "embla-carousel-react";
+import { useServerFn } from "@tanstack/react-start";
+import { sendContactMessage } from "@/lib/aerogym/email.functions";
+import { toast } from "sonner";
 import {
   ArrowRight,
-  Award,
   Flame,
   Trophy,
   Sparkles,
   Check,
   ChevronDown,
-  HelpCircle,
   Activity,
-  Star,
-  ShieldCheck,
-  Clock,
-  Users,
+  ChevronLeft,
+  ChevronRight,
+  MapPin,
+  Mail,
+  Phone,
+  User,
+  Send,
+  Loader2,
 } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -49,11 +55,80 @@ function fmtMoney(cents: number) {
   }).format(cents / 100);
 }
 
+interface Banner {
+  image: string;
+  title: string;
+  description: string;
+  link: string;
+}
+
 function Landing() {
   const [authed, setAuthed] = useState(false);
+  const sendQuery = useServerFn(sendContactMessage);
+  const [contactName, setContactName] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [contactMessage, setContactMessage] = useState("");
+  const [sendingQuery, setSendingQuery] = useState(false);
+
+  async function handleContactSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (sendingQuery) return;
+
+    setSendingQuery(true);
+    try {
+      await sendQuery({
+        name: contactName,
+        email: contactEmail,
+        phone: contactPhone || undefined,
+        message: contactMessage,
+      });
+      toast.success("Query sent successfully! We'll contact you soon.");
+      setContactName("");
+      setContactEmail("");
+      setContactPhone("");
+      setContactMessage("");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to send contact query.");
+    } finally {
+      setSendingQuery(false);
+    }
+  }
+
   const [plans, setPlans] = useState<DBPlan[]>([]);
   const [plansLoading, setPlansLoading] = useState(true);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+
+  // Slider & Gallery States
+  const [banners, setBanners] = useState<Banner[]>([]);
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+
+  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true });
+
+  const scrollPrev = useCallback(() => emblaApi && emblaApi.scrollPrev(), [emblaApi]);
+  const scrollNext = useCallback(() => emblaApi && emblaApi.scrollNext(), [emblaApi]);
+
+  const onSelect = useCallback(() => {
+    if (!emblaApi) return;
+    setSelectedIndex(emblaApi.selectedScrollSnap());
+  }, [emblaApi]);
+
+  useEffect(() => {
+    if (!emblaApi) return;
+    onSelect();
+    emblaApi.on("select", onSelect);
+    
+    // Autoplay slider every 6s
+    const interval = setInterval(() => {
+      emblaApi.scrollNext();
+    }, 6000);
+
+    return () => {
+      emblaApi.off("select", onSelect);
+      clearInterval(interval);
+    };
+  }, [emblaApi, onSelect]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setAuthed(!!data.session));
@@ -74,7 +149,56 @@ function Landing() {
         setPlansLoading(false);
       }
     }
+
+    async function loadLandingCustomizations() {
+      try {
+        const [{ data: bannerRow }, { data: photoRow }] = await Promise.all([
+          supabase.from("system_settings").select("value").eq("key", "landing_banners").maybeSingle(),
+          supabase.from("system_settings").select("value").eq("key", "gym_photos").maybeSingle(),
+        ]);
+
+        if (bannerRow?.value) {
+          setBanners(bannerRow.value as any as Banner[]);
+        } else {
+          setBanners([
+            {
+              image: "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=1600&auto=format&fit=crop",
+              title: "Drip Sweat, Track Growth",
+              description: "Welcome to the ultimate arena of performance. Heavy plates, elite coaches, and a dedicated community.",
+              link: "/auth",
+            },
+            {
+              image: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=80&w=1600&auto=format&fit=crop",
+              title: "Build Your Legend",
+              description: "Unleash your true potential with premium equipment and training programs tailored for you.",
+              link: "/auth",
+            },
+            {
+              image: "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?q=80&w=1600&auto=format&fit=crop",
+              title: "Tank by Tapan",
+              description: "No shortcuts. Just consistency, community, and results. Join today.",
+              link: "/auth",
+            }
+          ]);
+        }
+
+        if (photoRow?.value) {
+          setPhotos(photoRow.value as any as string[]);
+        } else {
+          setPhotos([
+            "https://images.unsplash.com/photo-1540575467063-178a50c2df87?q=80&w=800&auto=format&fit=crop",
+            "https://images.unsplash.com/photo-1571902943202-507ec2618e8f?q=80&w=800&auto=format&fit=crop",
+            "https://images.unsplash.com/photo-1593079831268-3381b0db4a77?q=80&w=800&auto=format&fit=crop",
+            "https://images.unsplash.com/photo-1519315901367-f34ff9154487?q=80&w=800&auto=format&fit=crop"
+          ]);
+        }
+      } catch (err) {
+        console.error("Failed to load slider & gallery configurations:", err);
+      }
+    }
+
     loadPlans();
+    loadLandingCustomizations();
   }, []);
 
   const faqs = [
@@ -116,15 +240,15 @@ function Landing() {
         }}
       />
 
-      {/* Nav Header */}
-      <header className="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-6 py-6">
+      {/* Navbar — sits above the banner, not overlapping it */}
+      <header className="relative z-20 flex items-center justify-between px-5 sm:px-10 py-4 border-b border-white/10 bg-black/30 backdrop-blur-md">
         <div className="flex items-center gap-3">
           <img
             src="/logo.png"
             alt="Tank by Tapan Logo"
             className="h-9 w-9 shrink-0 rounded-xl object-contain bg-white p-0.5 shadow-glow"
           />
-          <span className="text-lg font-bold tracking-tight text-sidebar-foreground">
+          <span className="text-lg font-bold tracking-tight text-white">
             Tank by <span className="text-primary font-black">Tapan</span>
           </span>
         </div>
@@ -137,36 +261,107 @@ function Landing() {
         </Link>
       </header>
 
-      {/* Hero Section */}
-      <section className="relative z-10 mx-auto max-w-5xl px-6 pb-16 pt-20 text-center">
-        <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full glass px-4 py-1.5 text-xs font-medium text-muted-foreground">
-          <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
-          Tank Strength & Conditioning Club
-        </div>
-        <h1 className="text-5xl font-bold leading-[1.05] tracking-tight md:text-7xl">
-          Drip Sweat. Track Growth. <br />
-          <span className="gradient-text">Build Legends</span>.
-        </h1>
-        <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground/90">
-          Welcome to the ultimate arena of performance. Combining heavy
-          plate-loaded iron, expert coach-led programs, and a dedicated
-          community to forge athletic excellence.
-        </p>
-        <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-          <Link
-            to={authed ? "/dashboard" : "/auth"}
-            className="rounded-xl gradient-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-glow transition-transform hover:scale-105"
-          >
-            {authed ? "Access Portal" : "Join the Gym"}
-          </Link>
-          <a
-            href="#plans"
-            className="rounded-xl border border-border bg-card/40 px-6 py-3 text-sm font-semibold backdrop-blur transition hover:bg-card"
-          >
-            View Plans
-          </a>
-        </div>
-      </section>
+      {/* Fixed-Height Banner Carousel (Gold's Gym style) */}
+      {banners.length > 0 && (
+        <section className="relative z-10 w-full h-[260px] sm:h-[380px] md:h-[440px]">
+          <div ref={emblaRef} className="h-full overflow-hidden">
+            <div className="flex h-full">
+              {banners.map((banner, idx) => {
+                const isLast = idx === banners.length - 1;
+                return (
+                  <div
+                    key={idx}
+                    className="relative min-w-0 shrink-0 grow-0 basis-full h-full flex items-center"
+                  >
+                    {/* Slide background */}
+                    <div
+                      className="absolute inset-0 bg-cover bg-center"
+                      style={{ backgroundImage: `url('${banner.image}')` }}
+                    />
+                    {/* Dark gradient overlay — left-to-right so text is readable */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-black/20" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+
+                    {/* Slide Content */}
+                    <div className="relative z-10 px-10 sm:px-16 md:px-20 max-w-2xl w-full space-y-3">
+                      <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/20 border border-primary/40 px-2.5 py-1 text-[9px] sm:text-[10px] font-bold text-primary uppercase tracking-widest">
+                        <Flame className="h-2.5 w-2.5" /> Tank Strength & Conditioning
+                      </div>
+                      <h2 className="text-2xl sm:text-4xl md:text-5xl font-extrabold leading-tight text-white drop-shadow-lg">
+                        {banner.title}
+                      </h2>
+                      <p className="text-xs sm:text-sm md:text-base text-slate-300 leading-relaxed max-w-md hidden sm:block">
+                        {banner.description}
+                      </p>
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <Link
+                          to={authed ? "/dashboard" : "/auth"}
+                          className="inline-flex items-center gap-2 rounded-lg gradient-primary px-5 py-2 sm:px-6 sm:py-2.5 text-xs sm:text-sm font-bold text-primary-foreground shadow-glow transition-all hover:scale-105 hover:brightness-110"
+                        >
+                          {authed ? "Open Portal" : (isLast ? "Join the Gym" : "Get Started")}
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        </Link>
+                        {idx === 0 && !authed && (
+                          <a
+                            href="#plans"
+                            className="hidden sm:inline-flex items-center gap-2 rounded-lg border border-white/30 bg-white/10 backdrop-blur-sm px-5 py-2 text-xs font-semibold text-white hover:bg-white/20 transition-all"
+                          >
+                            View Plans <ChevronDown className="h-3.5 w-3.5" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Prev / Next arrow buttons — outside the slides, vertically centred */}
+          {banners.length > 1 && (
+            <>
+              <button
+                onClick={scrollPrev}
+                aria-label="Previous slide"
+                className="absolute left-3 sm:left-5 top-1/2 -translate-y-1/2 z-20 flex h-9 w-9 sm:h-11 sm:w-11 items-center justify-center rounded-full bg-black/60 text-white hover:bg-primary border border-white/20 transition-all duration-200"
+              >
+                <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />
+              </button>
+              <button
+                onClick={scrollNext}
+                aria-label="Next slide"
+                className="absolute right-3 sm:right-5 top-1/2 -translate-y-1/2 z-20 flex h-9 w-9 sm:h-11 sm:w-11 items-center justify-center rounded-full bg-black/60 text-white hover:bg-primary border border-white/20 transition-all duration-200"
+              >
+                <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5" />
+              </button>
+
+              {/* Dot indicators */}
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5">
+                {banners.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => emblaApi?.scrollTo(i)}
+                    aria-label={`Go to slide ${i + 1}`}
+                    className={`rounded-full transition-all duration-300 ${
+                      selectedIndex === i
+                        ? "w-6 h-2 bg-primary"
+                        : "w-2 h-2 bg-white/40 hover:bg-white/70"
+                    }`}
+                  />
+                ))}
+              </div>
+
+              {/* Progress bar at very bottom */}
+              <div className="absolute bottom-0 left-0 right-0 z-20 h-[3px] bg-white/10">
+                <div
+                  className="h-full bg-primary transition-all duration-300"
+                  style={{ width: `${((selectedIndex + 1) / banners.length) * 100}%` }}
+                />
+              </div>
+            </>
+          )}
+        </section>
+      )}
 
       {/* Value Proposition Grid */}
       <section className="relative z-10 mx-auto max-w-5xl px-6 py-12">
@@ -359,58 +554,187 @@ function Landing() {
         )}
       </section>
 
-      {/* Athlete Testimonials */}
-      <section className="relative z-10 mx-auto max-w-6xl px-6 py-20">
+      {/* Our Gym Gallery Section */}
+      <section className="relative z-10 mx-auto max-w-5xl px-6 py-20 border-t border-border/20">
         <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-            What Our Athletes Say
+          <h2 className="text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">
+            Our Gym
           </h2>
-          <p className="mx-auto mt-3 max-w-2xl text-sm text-muted-foreground">
-            Hear from members who have transformed their performance at Tank by
-            Tapan.
+          <p className="mx-auto mt-3 max-w-2xl text-sm text-muted-foreground font-semibold">
+            Take a look inside Tank by Tapan. Explore our elite facilities, equipment, and training atmosphere.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-          {[
-            {
-              name: "Rajesh K.",
-              role: "Competitive Powerlifter",
-              text: "The equipment quality here is unmatched. Finding a gym with certified Hammer Strength gear and 75kg dumbbells was impossible until Tank by Tapan opened. The atmosphere is purely focused on hard work.",
-            },
-            {
-              name: "Priya M.",
-              role: "Marathon Runner",
-              text: "I love the cardio deck and recovery options. Being able to hit my speed workouts on Woodway treadmills and immediately follow up with dry sauna recovery has been a game-changer for my training cycles.",
-            },
-            {
-              name: "Vikram S.",
-              role: "Strength Athlete",
-              text: "Incredible staff and community. The front desk team is professional, personal coaching is top-tier, and the members motivate you to push your limits in every session.",
-            },
-          ].map((t, i) => (
-            <div
-              key={i}
-              className="rounded-2xl border border-border bg-card/40 p-6 backdrop-blur-sm flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex gap-1 mb-4 text-primary">
-                  {Array.from({ length: 5 }).map((_, j) => (
-                    <Star key={j} className="h-4 w-4 fill-primary" />
-                  ))}
+        {photos.length === 0 ? (
+          <p className="text-center text-sm text-muted-foreground py-10">No photos uploaded yet.</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            {photos.slice(0, 4).map((photo, i) => (
+              <div
+                key={i}
+                className="group relative overflow-hidden rounded-2xl border border-border bg-card/45 aspect-square shadow-glow transition-all duration-300 hover:scale-[1.03] hover:border-primary/40"
+              >
+                <img
+                  src={photo}
+                  alt={`Gym facility ${i + 1}`}
+                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
+                  <span className="text-[10px] font-black text-white uppercase tracking-wider">Facility View #{i + 1}</span>
                 </div>
-                <p className="text-xs text-muted-foreground/90 italic leading-relaxed">
-                  "{t.text}"
-                </p>
               </div>
-              <div className="mt-6 border-t border-border/60 pt-4">
-                <div className="text-sm font-semibold text-foreground">
-                  {t.name}
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Location & Contact Section */}
+      <section className="relative z-10 mx-auto max-w-5xl px-6 py-20 border-t border-border/20">
+        <div className="grid gap-10 md:grid-cols-2">
+          {/* Left Column: Location */}
+          <div className="space-y-6 flex flex-col justify-between">
+            <div className="space-y-4">
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary">
+                <MapPin className="h-3.5 w-3.5" /> Find Us
+              </div>
+              <h2 className="text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">
+                Our Gym Location
+              </h2>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Come train with us in person! We are located at Kasganj, Uttar Pradesh, with premium workout spaces, heavy plates, and top-tier equipment.
+              </p>
+              
+              <div className="space-y-3 pt-2">
+                <div className="flex gap-3 items-start">
+                  <div className="mt-0.5 rounded-lg bg-primary/10 p-2 text-primary">
+                    <MapPin className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-foreground">Address</h4>
+                    <p className="text-xs text-muted-foreground mt-0.5 font-medium">TaNK By TAPAN, Kasganj, Uttar Pradesh 207123</p>
+                  </div>
                 </div>
-                <div className="text-[10px] text-primary mt-0.5">{t.role}</div>
               </div>
             </div>
-          ))}
+
+            {/* Embedded Google Map */}
+            <div className="aspect-video w-full overflow-hidden rounded-2xl border border-border bg-card shadow-glow md:aspect-[4/3] min-h-[280px]">
+              <iframe
+                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3528.2713606622435!2d78.83082147610058!3d27.791470522197593!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x39751904b0e512a7%3A0xf120924df11203d3!2sTaNK%20By%20TAPAN!5e0!3m2!1sen!2sin!4v1718970000000!5m2!1sen!2sin"
+                width="100%"
+                height="100%"
+                style={{ border: 0 }}
+                allowFullScreen
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                className="h-full w-full"
+              />
+            </div>
+            
+            <a
+              href="https://www.google.com/maps/place/TaNK+By+TAPAN/@27.7914659,78.8333964,17z/data=!3m1!4b1!4m6!3m5!1s0x39751904b0e512a7:0xf120924df11203d3!8m2!3d27.7914659!4d78.8333964!16s%2Fg%2F11z7lgt4wz!18m1!1e1?entry=ttu&g_ep=EgoyMDI2MDYxNi4wIKXMDSoASAFQAw%3D%3D"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card hover:bg-muted/50 px-4 py-2.5 text-xs font-semibold text-foreground transition-all shadow-sm"
+            >
+              Open in Google Maps <ArrowRight className="h-3.5 w-3.5" />
+            </a>
+          </div>
+
+          {/* Right Column: Contact Us Form */}
+          <div className="rounded-2xl border border-border bg-card/45 p-6 backdrop-blur-md space-y-6 flex flex-col justify-between">
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary">
+                <Mail className="h-3.5 w-3.5" /> Contact
+              </div>
+              <h3 className="text-xl font-bold text-foreground">Have Questions?</h3>
+              <p className="text-xs text-muted-foreground font-medium">
+                Drop us a message below and our team will get back to you regarding membership options, queries, or personal training.
+              </p>
+            </div>
+
+            <form onSubmit={handleContactSubmit} className="space-y-4 pt-2">
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Name</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">
+                    <User className="h-4 w-4" />
+                  </span>
+                  <input
+                    type="text"
+                    required
+                    value={contactName}
+                    onChange={(e) => setContactName(e.target.value)}
+                    placeholder="Enter your name"
+                    className="w-full rounded-xl border border-border bg-background/50 py-2 pl-10 pr-4 text-xs placeholder:text-muted-foreground/60 focus:border-primary/50 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Email</label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">
+                      <Mail className="h-4 w-4" />
+                    </span>
+                    <input
+                      type="email"
+                      required
+                      value={contactEmail}
+                      onChange={(e) => setContactEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      className="w-full rounded-xl border border-border bg-background/50 py-2 pl-10 pr-4 text-xs placeholder:text-muted-foreground/60 focus:border-primary/50 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Phone (Optional)</label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">
+                      <Phone className="h-4 w-4" />
+                    </span>
+                    <input
+                      type="tel"
+                      value={contactPhone}
+                      onChange={(e) => setContactPhone(e.target.value)}
+                      placeholder="10 digit number"
+                      className="w-full rounded-xl border border-border bg-background/50 py-2 pl-10 pr-4 text-xs placeholder:text-muted-foreground/60 focus:border-primary/50 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Message</label>
+                <textarea
+                  required
+                  rows={4}
+                  value={contactMessage}
+                  onChange={(e) => setContactMessage(e.target.value)}
+                  placeholder="How can we help you achieve your goals?"
+                  className="w-full rounded-xl border border-border bg-background/50 p-3 text-xs placeholder:text-muted-foreground/60 focus:border-primary/50 focus:outline-none resize-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={sendingQuery}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-xl gradient-primary py-2.5 text-xs font-semibold text-primary-foreground shadow-glow transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
+              >
+                {sendingQuery ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Sending...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4" /> Send Message
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
         </div>
       </section>
 

@@ -17,7 +17,7 @@ export const Route = createFileRoute("/_authenticated")({
     const userRoles = ((roles ?? []) as Array<{ role: string }>).map((x) => x.role);
     const isStaff = userRoles.includes("admin") || userRoles.includes("front_desk");
 
-    const restrictedPaths = ["/employees", "/expenses", "/audit", "/billing"];
+    const restrictedPaths = ["/employees", "/expenses", "/audit", "/billing", "/landing"];
     const isRestricted = restrictedPaths.some((p) => location.pathname.startsWith(p));
 
     if (!isStaff && isRestricted) {
