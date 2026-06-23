@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import useEmblaCarousel from "embla-carousel-react";
 import { useServerFn } from "@tanstack/react-start";
+import { getOptimizedImageUrl } from "@/lib/utils";
 import { sendContactMessage } from "@/lib/aerogym/email.functions";
 import { toast } from "sonner";
 import {
@@ -292,9 +293,9 @@ function Landing() {
                   <>
                     {/* Cover image sideways with preserved aspect ratio, centered */}
                     <div
-                      className="absolute inset-0 bg-no-repeat"
+                      className="absolute inset-0 bg-no-repeat will-change-transform"
                       style={{
-                        backgroundImage: `url('${banner.image}')`,
+                        backgroundImage: `url('${getOptimizedImageUrl(banner.image, { width: 1200, quality: 70 })}')`,
                         backgroundSize: "cover",
                         backgroundPosition: "center",
                       }}
@@ -346,7 +347,7 @@ function Landing() {
                 return (
                   <div
                     key={idx}
-                    className="relative min-w-0 shrink-0 grow-0 basis-full h-full flex items-center"
+                    className="relative min-w-0 shrink-0 grow-0 basis-full h-full flex items-center will-change-transform"
                   >
                     {!hasText ? (
                       <Link to={slideLink} className="absolute inset-0 z-20 block w-full h-full cursor-pointer">
@@ -633,8 +634,9 @@ function Landing() {
                 className="group relative overflow-hidden rounded-2xl border border-border bg-card/45 aspect-square shadow-glow transition-all duration-300 hover:scale-[1.03] hover:border-primary/40"
               >
                 <img
-                  src={photo}
+                  src={getOptimizedImageUrl(photo, { width: 600, quality: 75 })}
                   alt={`Gym facility ${i + 1}`}
+                  loading="lazy"
                   className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">

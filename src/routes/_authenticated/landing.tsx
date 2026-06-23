@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import * as Icons from "lucide-react";
 import { toast } from "sonner";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { compressImage } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/landing")({
   head: () => ({ meta: [{ title: "Landing Page Customizer · Tank by Tapan" }] }),
@@ -109,9 +110,13 @@ function LandingTab() {
     
     try {
       setUploadingBanner(true);
-      const fileExt = newImgFile.name.split(".").pop();
+      
+      // Compress image client-side to maximum width 1600px at 80% quality
+      const optimizedFile = await compressImage(newImgFile, 1600, 0.8);
+      
+      const fileExt = optimizedFile.name.split(".").pop();
       const filePath = `banners/${Math.random()}-${Date.now()}.${fileExt}`;
-      const { error: uploadError } = await supabase.storage.from("photos").upload(filePath, newImgFile);
+      const { error: uploadError } = await supabase.storage.from("photos").upload(filePath, optimizedFile);
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage.from("photos").getPublicUrl(filePath);
@@ -244,9 +249,13 @@ function LandingTab() {
 
     try {
       setUploadingPhoto(true);
-      const fileExt = file.name.split(".").pop();
+      
+      // Compress image client-side to maximum width 800px at 75% quality
+      const optimizedFile = await compressImage(file, 800, 0.75);
+      
+      const fileExt = optimizedFile.name.split(".").pop();
       const filePath = `gallery/${Math.random()}-${Date.now()}.${fileExt}`;
-      const { error: uploadError } = await supabase.storage.from("photos").upload(filePath, file);
+      const { error: uploadError } = await supabase.storage.from("photos").upload(filePath, optimizedFile);
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage.from("photos").getPublicUrl(filePath);
