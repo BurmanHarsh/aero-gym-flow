@@ -556,12 +556,12 @@ function AddPlanDialog({ onClose }: { onClose: () => void }) {
         </div>
 
         <div>
-          <Label htmlFor="add-description">Description</Label>
+          <Label htmlFor="add-description">Description / Features (One per line)</Label>
           <Textarea
             id="add-description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Details about locker facilities, trainer slots, spa access, etc."
+            placeholder="e.g.&#10;Access to all premium facilities&#10;Free initial evaluation with coach"
             rows={3}
             disabled={busy}
           />
@@ -727,11 +727,12 @@ function EditPlanDialog({ plan, onClose }: { plan: Plan; onClose: () => void }) 
         </div>
 
         <div>
-          <Label htmlFor="edit-description">Description</Label>
+          <Label htmlFor="edit-description">Description / Features (One per line)</Label>
           <Textarea
             id="edit-description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+            placeholder="e.g.&#10;Access to all premium facilities&#10;Free initial evaluation with coach"
             rows={3}
             disabled={busy}
           />

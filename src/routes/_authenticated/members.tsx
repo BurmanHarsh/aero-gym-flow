@@ -70,6 +70,7 @@ function MembersPage() {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
+  const [activeTab, setActiveTab] = useState<"active" | "inactive">("active");
 
   // Profile Drawer / Edit Dialog / Delete Dialog states
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
@@ -137,10 +138,101 @@ function MembersPage() {
 
   const filtered = rows.filter((r) => {
     const t = q.toLowerCase();
-    return !t || r.full_name.toLowerCase().includes(t) || r.phone.includes(t) || r.member_code.toLowerCase().includes(t);
+    const matchesSearch = !t || r.full_name.toLowerCase().includes(t) || r.phone.includes(t) || r.member_code.toLowerCase().includes(t);
+    const matchesTab = activeTab === "active" ? r.status === "active" : r.status !== "active";
+    return matchesSearch && matchesTab;
   });
 
   const isStaff = me.isAdmin || me.roles.includes("front_desk");
+
+  const renderMemberList = () => {
+    if (loading) {
+      return <div className="p-10 text-center text-sm text-muted-foreground">Loading members...</div>;
+    }
+    if (filtered.length === 0) {
+      return (
+        <div className="p-12 text-center">
+          <p className="text-sm font-medium">
+            {activeTab === "active" ? "No active members yet" : "No longer or removed members found"}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {activeTab === "active" 
+              ? "Add a member or adjust your search query." 
+              : "Removed, expired, frozen, or cancelled member profiles will appear here."}
+          </p>
+        </div>
+      );
+    }
+    return (
+      <>
+        <div className="divide-y divide-border">
+          {filtered.map((m) => (
+            <div
+              key={m.id}
+              className="group flex w-full items-center justify-between gap-4 px-5 py-4 transition hover:bg-accent/30"
+            >
+              <div
+                onClick={() => setSelectedMember(m)}
+                className="flex flex-1 items-center gap-4 min-w-0 cursor-pointer"
+              >
+                {m.photo_url && !brokenImages[m.id] ? (
+                  <img
+                    src={m.photo_url}
+                    alt={m.full_name}
+                    onError={() => setBrokenImages((prev) => ({ ...prev, [m.id]: true }))}
+                    className="h-10 w-10 shrink-0 rounded-xl object-cover"
+                  />
+                ) : (
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl gradient-primary text-sm font-semibold text-primary-foreground">
+                    {m.full_name.slice(0, 1).toUpperCase()}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate font-medium">{m.full_name}</span>
+                    <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">{m.member_code}</span>
+                  </div>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                    {isStaff && (
+                      <>
+                        <span className="inline-flex items-center gap-1"><Phone className="h-3 w-3" /> {m.phone}</span>
+                        {m.email && <span className="inline-flex items-center gap-1"><Mail className="h-3 w-3" /> {m.email}</span>}
+                      </>
+                    )}
+                    {m.expires_at && <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" /> exp {m.expires_at}</span>}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <StatusPill status={m.status} />
+                {isStaff && (
+                  <Button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeletingMember(m);
+                    }}
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {hasMore && !loading && !q && (
+          <div className="flex justify-center border-t border-border p-4">
+            <Button variant="outline" size="sm" onClick={() => load(false)} className="text-xs">
+              Load more members
+            </Button>
+          </div>
+        )}
+      </>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -159,86 +251,34 @@ function MembersPage() {
         )}
       </header>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name, phone or code..." className="pl-9" />
-      </div>
+      <div className="space-y-4">
+        <div className="relative w-full">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name, phone or code..." className="pl-9 w-full" />
+        </div>
+        
+        <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as "active" | "inactive")} className="w-full space-y-4">
+          <TabsList className="bg-card border border-border/80 p-1">
+            <TabsTrigger value="active" className="cursor-pointer">
+              Active Member ({rows.filter((r) => r.status === "active").length})
+            </TabsTrigger>
+            <TabsTrigger value="inactive" className="cursor-pointer">
+              No Longer / Removed ({rows.filter((r) => r.status !== "active").length})
+            </TabsTrigger>
+          </TabsList>
 
-      <div className="overflow-hidden rounded-2xl border border-border bg-card">
-        {loading ? (
-          <div className="p-10 text-center text-sm text-muted-foreground">Loading members...</div>
-        ) : filtered.length === 0 ? (
-          <div className="p-12 text-center">
-            <p className="text-sm font-medium">No members yet</p>
-            <p className="mt-1 text-xs text-muted-foreground">Add your first member to get started.</p>
-          </div>
-        ) : (
-          <div className="divide-y divide-border">
-            {filtered.map((m) => (
-              <div
-                key={m.id}
-                className="group flex w-full items-center justify-between gap-4 px-5 py-4 transition hover:bg-accent/30"
-              >
-                <div
-                  onClick={() => setSelectedMember(m)}
-                  className="flex flex-1 items-center gap-4 min-w-0 cursor-pointer"
-                >
-                  {m.photo_url && !brokenImages[m.id] ? (
-                    <img
-                      src={m.photo_url}
-                      alt={m.full_name}
-                      onError={() => setBrokenImages((prev) => ({ ...prev, [m.id]: true }))}
-                      className="h-10 w-10 shrink-0 rounded-xl object-cover"
-                    />
-                  ) : (
-                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl gradient-primary text-sm font-semibold text-primary-foreground">
-                      {m.full_name.slice(0, 1).toUpperCase()}
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate font-medium">{m.full_name}</span>
-                      <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">{m.member_code}</span>
-                    </div>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                      {isStaff && (
-                        <>
-                          <span className="inline-flex items-center gap-1"><Phone className="h-3 w-3" /> {m.phone}</span>
-                          {m.email && <span className="inline-flex items-center gap-1"><Mail className="h-3 w-3" /> {m.email}</span>}
-                        </>
-                      )}
-                      {m.expires_at && <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" /> exp {m.expires_at}</span>}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <StatusPill status={m.status} />
-                  {isStaff && (
-                    <Button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeletingMember(m);
-                      }}
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+          <TabsContent value="active" className="mt-0 outline-none">
+            <div className="overflow-hidden rounded-2xl border border-border bg-card">
+              {renderMemberList()}
+            </div>
+          </TabsContent>
 
-        {hasMore && !loading && !q && (
-          <div className="flex justify-center border-t border-border p-4">
-            <Button variant="outline" size="sm" onClick={() => load(false)} className="text-xs">
-              Load more members
-            </Button>
-          </div>
-        )}
+          <TabsContent value="inactive" className="mt-0 outline-none">
+            <div className="overflow-hidden rounded-2xl border border-border bg-card">
+              {renderMemberList()}
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Detailed Member Profile Dialog */}

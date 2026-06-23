@@ -252,29 +252,35 @@ function Landing() {
       />
 
       {/* Navbar — sits above the banner, not overlapping it */}
-      <header className="relative z-20 flex items-center justify-between px-5 sm:px-10 py-4 border-b border-white/10 bg-black/30 backdrop-blur-md">
-        <div className="flex items-center gap-3">
+      <header className="relative z-20 flex items-center justify-between px-3 sm:px-10 py-2.5 sm:py-4 border-b border-white/10 bg-black/30 backdrop-blur-md">
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           <img
             src="/logo.png"
             alt="Tank by Tapan Logo"
-            className="h-9 w-9 shrink-0 rounded-xl object-contain bg-white p-0.5 shadow-glow"
+            className="h-7 w-7 sm:h-9 sm:w-9 shrink-0 rounded-xl object-contain bg-white p-0.5 shadow-glow"
           />
-          <span className="text-lg font-bold tracking-tight text-white">
+          <span className="text-xs sm:text-lg font-bold tracking-tight text-white whitespace-nowrap">
             Tank by <span className="text-primary font-black">Tapan</span>
           </span>
         </div>
         <Link
           to={authed ? "/dashboard" : "/auth"}
-          className="inline-flex items-center gap-2 rounded-lg gradient-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-glow transition-transform hover:scale-105"
+          className="inline-flex items-center gap-1 sm:gap-2 rounded-lg gradient-primary px-2.5 py-1.5 sm:px-4 sm:py-2 text-[11px] sm:text-sm font-medium text-primary-foreground shadow-glow transition-transform hover:scale-105 whitespace-nowrap shrink-0"
         >
-          {authed ? "Open dashboard" : "Sign in"}{" "}
-          <ArrowRight className="h-4 w-4" />
+          {authed ? (
+            <>
+              <span className="hidden sm:inline">Open </span>Dashboard
+            </>
+          ) : (
+            "Sign in"
+          )}{" "}
+          <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
         </Link>
       </header>
 
       {/* Fixed-Height Banner Carousel (Gold's Gym style) */}
       {banners.length > 0 && (
-        <section className="relative z-10 w-full h-[260px] sm:h-[380px] md:h-[440px]">
+        <section className="relative z-10 w-full h-[180px] sm:h-[280px] md:h-[400px] lg:h-[60vh] lg:min-h-[320px] lg:max-h-[640px] bg-black">
           <div ref={emblaRef} className="h-full overflow-hidden">
             <div className="flex h-full">
               {banners.map((banner, idx) => {
@@ -284,11 +290,17 @@ function Landing() {
 
                 const slideContent = (
                   <>
-                    {/* Slide background */}
+                    {/* Cover image sideways with preserved aspect ratio, centered */}
                     <div
-                      className="absolute inset-0 bg-cover bg-center"
-                      style={{ backgroundImage: `url('${banner.image}')` }}
+                      className="absolute inset-0 bg-no-repeat"
+                      style={{
+                        backgroundImage: `url('${banner.image}')`,
+                        backgroundSize: "cover",
+                        backgroundPosition: "center",
+                      }}
                     />
+                    {/* Subtle bottom fade to blend into the dark page background */}
+                    <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black to-transparent pointer-events-none" />
                     {/* Dark gradient overlay — only if there is text overlay to keep readable */}
                     {hasText && (
                       <>
@@ -513,67 +525,81 @@ function Landing() {
             No active plans are currently listed. Please contact the front desk.
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 justify-center max-w-5xl mx-auto">
+          <div className={plans.length === 1 
+            ? "flex justify-center max-w-sm mx-auto w-full"
+            : "grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 justify-center max-w-5xl mx-auto"
+          }>
             {plans.map((p) => {
+              const isGrandOpening = p.name.toLowerCase().includes("grand opening");
               const isPopular =
-                p.name.toLowerCase().includes("popular") ||
-                p.name.toLowerCase().includes("gold") ||
-                p.name.toLowerCase().includes("standard");
+                !isGrandOpening && (
+                  p.name.toLowerCase().includes("popular") ||
+                  p.name.toLowerCase().includes("gold") ||
+                  p.name.toLowerCase().includes("standard")
+                );
+              const features = p.description
+                ? p.description.split("\n").map((f) => f.trim()).filter(Boolean)
+                : [
+                    "Access to all premium facilities",
+                    "Free initial evaluation with coach",
+                  ];
+
               return (
                 <div
                   key={p.id}
-                  className={`relative flex flex-col justify-between overflow-hidden rounded-3xl border p-6 backdrop-blur-sm transition-all duration-300 ${
-                    isPopular
-                      ? "border-primary bg-card/70 shadow-glow hover:scale-[1.02]"
-                      : "border-border bg-card/40 hover:-translate-y-1 hover:bg-card/60"
+                  className={`relative flex flex-col justify-between overflow-hidden rounded-3xl border p-7 backdrop-blur-md transition-all duration-300 w-full ${
+                    isPopular || isGrandOpening
+                      ? "border-primary/50 bg-gradient-to-b from-card/85 to-card/45 shadow-glow hover:scale-[1.02] hover:border-primary"
+                      : "border-border bg-gradient-to-b from-card/60 to-card/30 hover:-translate-y-1 hover:bg-card/50 hover:border-white/25"
                   }`}
                 >
-                  {isPopular && (
-                    <span className="absolute right-4 top-4 rounded-full bg-primary/20 border border-primary/30 px-2.5 py-0.5 text-[9px] font-semibold text-primary uppercase tracking-wider">
-                      Most Popular
-                    </span>
-                  )}
-                  <div>
-                    <h3 className="text-lg font-bold text-foreground">
+                  {/* Decorative top-right light leak */}
+                  <div className={`absolute top-0 right-0 -mt-10 -mr-10 w-28 h-28 rounded-full blur-2xl pointer-events-none opacity-40 transition-all duration-300 ${
+                    isPopular || isGrandOpening ? "bg-primary" : "bg-white/10"
+                  }`} />
+
+                  <div className="relative z-10">
+                    <div className="flex items-center justify-between gap-4 mb-3 min-h-[22px]">
+                      {isPopular && (
+                        <span className="rounded-full bg-primary/20 border border-primary/30 px-2.5 py-0.5 text-[9px] font-semibold text-primary uppercase tracking-wider">
+                          Most Popular
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="text-xl font-bold tracking-tight text-white font-display">
                       {p.name}
                     </h3>
-                    <p className="mt-2 text-xs text-muted-foreground min-h-[32px]">
-                      {p.description ||
-                        "Full access to facilities and trainer guidance."}
-                    </p>
 
-                    <div className="mt-5 flex items-baseline">
-                      <span className="text-3xl font-black tracking-tight text-foreground">
+                    <div className="mt-5 flex items-baseline gap-1.5">
+                      <span className="text-4xl sm:text-5xl font-black tracking-tight text-white font-display">
                         {fmtMoney(p.price_cents)}
                       </span>
-                      <span className="text-xs text-muted-foreground ml-2">
+                      <span className="text-xs font-semibold text-slate-400">
                         / {p.duration_days} days
                       </span>
                     </div>
 
-                    <ul className="mt-6 space-y-3 text-xs text-muted-foreground">
-                      <li className="flex items-center gap-2">
-                        <Check className="h-4 w-4 text-success shrink-0" />
-                        <span>24/7 Gym & Facility Access</span>
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <Check className="h-4 w-4 text-success shrink-0" />
-                        <span>Premium locker rooms & saunas</span>
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <Check className="h-4 w-4 text-success shrink-0" />
-                        <span>Free initial evaluation with coach</span>
-                      </li>
+                    <div className="h-[1px] w-full bg-white/10 my-5" />
+
+                    <ul className="space-y-3.5 text-xs">
+                      {features.map((feature, idx) => (
+                        <li key={idx} className="flex items-center gap-3 text-slate-300">
+                          <div className="rounded-full bg-emerald-500/10 p-0.5 text-emerald-400 border border-emerald-500/20 shadow-sm shrink-0">
+                            <Check className="h-3.5 w-3.5" />
+                          </div>
+                          <span className="leading-relaxed">{feature}</span>
+                        </li>
+                      ))}
                     </ul>
                   </div>
 
-                  <div className="mt-8">
+                  <div className="mt-8 relative z-10">
                     <Link
                       to={authed ? "/dashboard" : "/auth"}
-                      className={`block w-full rounded-xl py-2.5 text-center text-xs font-semibold shadow transition-all duration-300 ${
-                        isPopular
-                          ? "gradient-primary text-primary-foreground hover:opacity-90"
-                          : "bg-muted text-foreground border border-border hover:bg-muted/80"
+                      className={`block w-full rounded-xl py-3 text-center text-xs font-bold shadow-lg transition-all duration-300 active:scale-[0.98] ${
+                        isPopular || isGrandOpening
+                          ? "gradient-primary text-primary-foreground hover:brightness-110 hover:shadow-primary/20"
+                          : "bg-muted text-foreground border border-border hover:bg-muted/80 hover:border-white/10"
                       }`}
                     >
                       {authed ? "Purchase in Dashboard" : "Get Started Now"}
@@ -623,57 +649,7 @@ function Landing() {
       {/* Location & Contact Section */}
       <section className="relative z-10 mx-auto max-w-5xl px-6 py-20 border-t border-border/20">
         <div className="grid gap-10 md:grid-cols-2">
-          {/* Left Column: Location */}
-          <div className="space-y-6 flex flex-col justify-between">
-            <div className="space-y-4">
-              <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary">
-                <MapPin className="h-3.5 w-3.5" /> Find Us
-              </div>
-              <h2 className="text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">
-                Our Gym Location
-              </h2>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                Come train with us in person! We are located at Kasganj, Uttar Pradesh, with premium workout spaces, heavy plates, and top-tier equipment.
-              </p>
-              
-              <div className="space-y-3 pt-2">
-                <div className="flex gap-3 items-start">
-                  <div className="mt-0.5 rounded-lg bg-primary/10 p-2 text-primary">
-                    <MapPin className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-foreground">Address</h4>
-                    <p className="text-xs text-muted-foreground mt-0.5 font-medium">TaNK By TAPAN, Kasganj, Uttar Pradesh 207123</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Embedded Google Map */}
-            <div className="w-full overflow-hidden rounded-2xl border border-border bg-card shadow-glow h-[280px] md:h-auto md:aspect-[4/3]">
-              <iframe
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3528.2713606622435!2d78.83082147610058!3d27.791470522197593!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x39751904b0e512a7%3A0xf120924df11203d3!2sTaNK%20By%20TAPAN!5e0!3m2!1sen!2sin!4v1718970000000!5m2!1sen!2sin"
-                width="100%"
-                height="100%"
-                style={{ border: 0 }}
-                allowFullScreen
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-                className="h-full w-full"
-              />
-            </div>
-            
-            <a
-              href="https://www.google.com/maps/place/TaNK+By+TAPAN/@27.7914659,78.8333964,17z/data=!3m1!4b1!4m6!3m5!1s0x39751904b0e512a7:0xf120924df11203d3!8m2!3d27.7914659!4d78.8333964!16s%2Fg%2F11z7lgt4wz!18m1!1e1?entry=ttu&g_ep=EgoyMDI2MDYxNi4wIKXMDSoASAFQAw%3D%3D"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card hover:bg-muted/50 px-4 py-2.5 text-xs font-semibold text-foreground transition-all shadow-sm"
-            >
-              Open in Google Maps <ArrowRight className="h-3.5 w-3.5" />
-            </a>
-          </div>
-
-          {/* Right Column: Contact Us Form */}
+          {/* Left Column: Contact Us Form */}
           <div className="rounded-2xl border border-border bg-card/45 p-6 backdrop-blur-md space-y-6 flex flex-col justify-between">
             <div className="space-y-2">
               <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary">
@@ -766,6 +742,56 @@ function Landing() {
                 )}
               </button>
             </form>
+          </div>
+
+          {/* Right Column: Location */}
+          <div className="space-y-6 flex flex-col justify-between">
+            <div className="space-y-4">
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary">
+                <MapPin className="h-3.5 w-3.5" /> Find Us
+              </div>
+              <h2 className="text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">
+                Our Gym Location
+              </h2>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Come train with us in person! We are located at Kasganj, Uttar Pradesh, with premium workout spaces, heavy plates, and top-tier equipment.
+              </p>
+              
+              <div className="space-y-3 pt-2">
+                <div className="flex gap-3 items-start">
+                  <div className="mt-0.5 rounded-lg bg-primary/10 p-2 text-primary">
+                    <MapPin className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-foreground">Address</h4>
+                    <p className="text-xs text-muted-foreground mt-0.5 font-medium">TaNK By TAPAN, Kasganj, Uttar Pradesh 207123</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Embedded Google Map */}
+            <div className="w-full overflow-hidden rounded-2xl border border-border bg-card shadow-glow h-[280px] md:h-auto md:aspect-[4/3]">
+              <iframe
+                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3528.2713606622435!2d78.83082147610058!3d27.791470522197593!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x39751904b0e512a7%3A0xf120924df11203d3!2sTaNK%20By%20TAPAN!5e0!3m2!1sen!2sin!4v1718970000000!5m2!1sen!2sin"
+                width="100%"
+                height="100%"
+                style={{ border: 0 }}
+                allowFullScreen
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                className="h-full w-full"
+              />
+            </div>
+            
+            <a
+              href="https://www.google.com/maps/place/TaNK+By+TAPAN/@27.7914659,78.8333964,17z/data=!3m1!4b1!4m6!3m5!1s0x39751904b0e512a7:0xf120924df11203d3!8m2!3d27.7914659!4d78.8333964!16s%2Fg%2F11z7lgt4wz!18m1!1e1?entry=ttu&g_ep=EgoyMDI2MDYxNi4wIKXMDSoASAFQAw%3D%3D"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card hover:bg-muted/50 px-4 py-2.5 text-xs font-semibold text-foreground transition-all shadow-sm"
+            >
+              Open in Google Maps <ArrowRight className="h-3.5 w-3.5" />
+            </a>
           </div>
         </div>
       </section>

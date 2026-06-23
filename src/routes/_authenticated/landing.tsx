@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import * as Icons from "lucide-react";
 import { toast } from "sonner";
 import { useCurrentUser } from "@/hooks/use-current-user";
@@ -66,6 +67,13 @@ function LandingTab() {
   const [newPhotoFile, setNewPhotoFile] = useState<File | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
+
+  // Edit Banner state
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDesc, setEditDesc] = useState("");
+  const [editLink, setEditLink] = useState("");
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   async function loadData() {
     try {
@@ -139,6 +147,40 @@ function LandingTab() {
       toast.error(err.message || "Failed to add banner");
     } finally {
       setUploadingBanner(false);
+      setSavingBanners(false);
+    }
+  }
+
+  async function handleSaveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (editingIndex === null) return;
+    
+    try {
+      const updated = [...banners];
+      updated[editingIndex] = {
+        ...updated[editingIndex],
+        title: editTitle.trim(),
+        description: editDesc.trim(),
+        link: editLink.trim(),
+      };
+
+      setSavingBanners(true);
+      const { error: dbError } = await supabase
+        .from("system_settings")
+        .upsert({
+          key: "landing_banners",
+          value: updated as any,
+          updated_at: new Date().toISOString(),
+        });
+      if (dbError) throw dbError;
+
+      setBanners(updated);
+      setEditDialogOpen(false);
+      setEditingIndex(null);
+      toast.success("Slide updated successfully!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update slide");
+    } finally {
       setSavingBanners(false);
     }
   }
@@ -304,6 +346,22 @@ function LandingTab() {
                   </Button>
                   <Button
                     type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => {
+                      setEditingIndex(index);
+                      setEditTitle(banner.title);
+                      setEditDesc(banner.description);
+                      setEditLink(banner.link);
+                      setEditDialogOpen(true);
+                    }}
+                    disabled={savingBanners}
+                    title="Edit Slide Text/Link"
+                  >
+                    <Icons.Edit2 className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
                     variant="destructive"
                     size="icon"
                     onClick={() => handleDeleteBanner(index)}
@@ -444,6 +502,51 @@ function LandingTab() {
           </p>
         )}
       </div>
+
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Banner Slide</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSaveEdit} className="space-y-4 pt-2">
+            <div>
+              <Label htmlFor="edit-title">Slide Title</Label>
+              <Input
+                id="edit-title"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                placeholder="Leave blank to show image only"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-desc">Slide Description</Label>
+              <Input
+                id="edit-desc"
+                value={editDesc}
+                onChange={(e) => setEditDesc(e.target.value)}
+                placeholder="Leave blank to show image only"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-link">Action Link</Label>
+              <Input
+                id="edit-link"
+                value={editLink}
+                onChange={(e) => setEditLink(e.target.value)}
+                placeholder="/auth"
+              />
+            </div>
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" className="gradient-primary text-primary-foreground">
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
