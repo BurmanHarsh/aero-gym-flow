@@ -348,14 +348,6 @@ function AuthPage() {
                 )}
                 Continue with Google
               </Button>
-
-              {/* Notice */}
-              <div className="rounded-xl border border-border/50 bg-muted/20 px-4 py-3 text-center">
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Access is restricted to authorised gym staff and members only.
-                  If you don't have access, contact your gym administrator.
-                </p>
-              </div>
             </div>
           )}
         </div>
