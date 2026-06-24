@@ -8,14 +8,14 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Percent, Plus, Trash2, ShieldAlert, CheckCircle, XCircle } from "lucide-react";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { getAuthCache } from "@/routes/_authenticated/route";
 
 export const Route = createFileRoute("/_authenticated/coupons")({
   head: () => ({ meta: [{ title: "Coupons · Tank by Tapan" }] }),
-  beforeLoad: async () => {
-    const { data } = await supabase.auth.getUser();
-    if (!data.user) throw redirect({ to: "/auth" });
-    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id).eq("role", "admin");
-    if (!roles || roles.length === 0) throw redirect({ to: "/dashboard" });
+  beforeLoad: () => {
+    const cached = getAuthCache();
+    if (!cached) throw redirect({ to: "/auth" });
+    if (!cached.roles.includes("admin")) throw redirect({ to: "/dashboard" });
   },
   component: CouponsPage,
 });

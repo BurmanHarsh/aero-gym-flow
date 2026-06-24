@@ -12,15 +12,14 @@ import { Label } from "@/components/ui/label";
 import { Wallet, Banknote, CreditCard, Smartphone, Plus, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { sendReceiptEmail } from "@/lib/aerogym/email.functions";
-
+import { getAuthCache } from "@/routes/_authenticated/route";
 
 export const Route = createFileRoute("/_authenticated/billing")({
   head: () => ({ meta: [{ title: "Billing · Tank by Tapan" }] }),
-  beforeLoad: async () => {
-    const { data } = await supabase.auth.getUser();
-    if (!data.user) throw redirect({ to: "/auth" });
-    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id).in("role", ["admin"]);
-    if (!roles || roles.length === 0) throw redirect({ to: "/dashboard" });
+  beforeLoad: () => {
+    const cached = getAuthCache();
+    if (!cached) throw redirect({ to: "/auth" });
+    if (!cached.roles.includes("admin")) throw redirect({ to: "/dashboard" });
   },
   component: BillingPage,
 });

@@ -2,14 +2,14 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ShieldCheck, ShieldAlert } from "lucide-react";
+import { getAuthCache } from "@/routes/_authenticated/route";
 
 export const Route = createFileRoute("/_authenticated/audit")({
   head: () => ({ meta: [{ title: "Audit logs · AeroGym OS" }] }),
-  beforeLoad: async () => {
-    const { data } = await supabase.auth.getUser();
-    if (!data.user) throw redirect({ to: "/auth" });
-    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id).in("role", ["admin"]);
-    if (!roles || roles.length === 0) throw redirect({ to: "/dashboard" });
+  beforeLoad: () => {
+    const cached = getAuthCache();
+    if (!cached) throw redirect({ to: "/auth" });
+    if (!cached.roles.includes("admin")) throw redirect({ to: "/dashboard" });
   },
   component: AuditPage,
 });

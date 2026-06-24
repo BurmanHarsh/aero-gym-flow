@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { getAuthCache, clearAuthCache } from "@/routes/_authenticated/route";
 import type { User } from "@supabase/supabase-js";
 
 export type AppRole = "admin" | "front_desk";
@@ -24,7 +25,24 @@ export function useCurrentUser(): CurrentUser {
 
   useEffect(() => {
     let active = true;
+
     async function load() {
+      // Fast path: read from the parent route's auth cache
+      const cached = getAuthCache();
+      if (cached) {
+        // Still need to get the full User object for other consumers,
+        // but getSession is instant if the session is already loaded in memory
+        const { data } = await supabase.auth.getUser();
+        if (!active) return;
+        setUser(data.user);
+        setRoles(cached.roles as AppRole[]);
+        setFullName(cached.fullName);
+        setAvatarUrl(cached.avatarUrl);
+        setLoading(false);
+        return;
+      }
+
+      // Slow path: no cache, fetch everything
       const { data } = await supabase.auth.getUser();
       if (!active) return;
       setUser(data.user);
@@ -40,8 +58,13 @@ export function useCurrentUser(): CurrentUser {
       }
       setLoading(false);
     }
+
     load();
-    const { data: sub } = supabase.auth.onAuthStateChange(() => load());
+
+    const { data: sub } = supabase.auth.onAuthStateChange(() => {
+      clearAuthCache(); // bust cache on auth changes
+      load();
+    });
     return () => {
       active = false;
       sub.subscription.unsubscribe();
@@ -59,3 +82,4 @@ export function useCurrentUser(): CurrentUser {
     loading,
   };
 }
+

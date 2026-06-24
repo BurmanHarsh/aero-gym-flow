@@ -27,12 +27,13 @@ import {
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { sendInventorySaleEmail } from "@/lib/aerogym/email.functions";
+import { getAuthCache } from "@/routes/_authenticated/route";
 
 export const Route = createFileRoute("/_authenticated/inventory")({
   head: () => ({ meta: [{ title: "Inventory · Tank by Tapan" }] }),
-  beforeLoad: async () => {
-    const { data } = await supabase.auth.getUser();
-    if (!data.user) throw redirect({ to: "/auth" });
+  beforeLoad: () => {
+    const cached = getAuthCache();
+    if (!cached) throw redirect({ to: "/auth" });
   },
   component: InventoryPage,
 });

@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import useEmblaCarousel from "embla-carousel-react";
 import { useServerFn } from "@tanstack/react-start";
@@ -108,13 +108,22 @@ function Landing() {
 
   // Slider & Gallery States
   const [banners, setBanners] = useState<Banner[]>([]);
+  const [bannersLoading, setBannersLoading] = useState(true);
+  const [firstBannerReady, setFirstBannerReady] = useState(false);
+  const preloadedImages = useRef<Set<string>>(new Set());
   const [photos, setPhotos] = useState<string[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true });
 
-  const scrollPrev = useCallback(() => emblaApi && emblaApi.scrollPrev(), [emblaApi]);
-  const scrollNext = useCallback(() => emblaApi && emblaApi.scrollNext(), [emblaApi]);
+  const scrollPrev = useCallback(
+    () => emblaApi && emblaApi.scrollPrev(),
+    [emblaApi],
+  );
+  const scrollNext = useCallback(
+    () => emblaApi && emblaApi.scrollNext(),
+    [emblaApi],
+  );
 
   const onSelect = useCallback(() => {
     if (!emblaApi) return;
@@ -125,7 +134,7 @@ function Landing() {
     if (!emblaApi) return;
     onSelect();
     emblaApi.on("select", onSelect);
-    
+
     // Autoplay slider every 6s
     const interval = setInterval(() => {
       emblaApi.scrollNext();
@@ -164,9 +173,18 @@ function Landing() {
 
     async function loadLandingCustomizations() {
       try {
+        setBannersLoading(true);
         const [{ data: bannerRow }, { data: photoRow }] = await Promise.all([
-          supabase.from("system_settings").select("value").eq("key", "landing_banners").maybeSingle(),
-          supabase.from("system_settings").select("value").eq("key", "gym_photos").maybeSingle(),
+          supabase
+            .from("system_settings")
+            .select("value")
+            .eq("key", "landing_banners")
+            .maybeSingle(),
+          supabase
+            .from("system_settings")
+            .select("value")
+            .eq("key", "gym_photos")
+            .maybeSingle(),
         ]);
 
         if (bannerRow?.value) {
@@ -174,23 +192,29 @@ function Landing() {
         } else {
           setBanners([
             {
-              image: "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=1600&auto=format&fit=crop",
+              image:
+                "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=1600&auto=format&fit=crop",
               title: "Drip Sweat, Track Growth",
-              description: "Welcome to the ultimate arena of performance. Heavy plates, elite coaches, and a dedicated community.",
+              description:
+                "Welcome to the ultimate arena of performance. Heavy plates, elite coaches, and a dedicated community.",
               link: "/auth",
             },
             {
-              image: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=80&w=1600&auto=format&fit=crop",
+              image:
+                "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=80&w=1600&auto=format&fit=crop",
               title: "Build Your Legend",
-              description: "Unleash your true potential with premium equipment and training programs tailored for you.",
+              description:
+                "Unleash your true potential with premium equipment and training programs tailored for you.",
               link: "/auth",
             },
             {
-              image: "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?q=80&w=1600&auto=format&fit=crop",
+              image:
+                "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?q=80&w=1600&auto=format&fit=crop",
               title: "Tank by Tapan",
-              description: "No shortcuts. Just consistency, community, and results. Join today.",
+              description:
+                "No shortcuts. Just consistency, community, and results. Join today.",
               link: "/auth",
-            }
+            },
           ]);
         }
 
@@ -201,17 +225,55 @@ function Landing() {
             "https://images.unsplash.com/photo-1540575467063-178a50c2df87?q=80&w=800&auto=format&fit=crop",
             "https://images.unsplash.com/photo-1571902943202-507ec2618e8f?q=80&w=800&auto=format&fit=crop",
             "https://images.unsplash.com/photo-1593079831268-3381b0db4a77?q=80&w=800&auto=format&fit=crop",
-            "https://images.unsplash.com/photo-1519315901367-f34ff9154487?q=80&w=800&auto=format&fit=crop"
+            "https://images.unsplash.com/photo-1519315901367-f34ff9154487?q=80&w=800&auto=format&fit=crop",
           ]);
         }
       } catch (err) {
         console.error("Failed to load slider & gallery configurations:", err);
+      } finally {
+        setBannersLoading(false);
       }
     }
 
     loadPlans();
     loadLandingCustomizations();
   }, []);
+
+  // Preload banner images eagerly once URLs are available
+  useEffect(() => {
+    if (banners.length === 0) return;
+
+    // Preload the first banner image immediately and mark ready
+    const firstUrl = getOptimizedImageUrl(banners[0].image, {
+      width: 1200,
+      quality: 70,
+    });
+    if (!preloadedImages.current.has(firstUrl)) {
+      const img = new Image();
+      img.src = firstUrl;
+      img.onload = () => {
+        preloadedImages.current.add(firstUrl);
+        setFirstBannerReady(true);
+      };
+      img.onerror = () => setFirstBannerReady(true); // show even on error
+    } else {
+      setFirstBannerReady(true);
+    }
+
+    // Preload remaining banners in background after a short delay
+    const timer = setTimeout(() => {
+      banners.slice(1).forEach((b) => {
+        const url = getOptimizedImageUrl(b.image, { width: 1200, quality: 70 });
+        if (!preloadedImages.current.has(url)) {
+          const img = new Image();
+          img.src = url;
+          img.onload = () => preloadedImages.current.add(url);
+        }
+      });
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [banners]);
 
   const faqs = [
     {
@@ -280,14 +342,23 @@ function Landing() {
       </header>
 
       {/* Fixed-Height Banner Carousel (Gold's Gym style) */}
-      {banners.length > 0 && (
+      {bannersLoading ? (
+        /* Skeleton shimmer while fetching banner data */
+        <section className="relative z-10 w-full h-[180px] sm:h-[280px] md:h-[400px] lg:h-[60vh] lg:min-h-[320px] lg:max-h-[640px] bg-black overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-black via-zinc-800/50 to-black animate-pulse" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="h-8 w-8 rounded-full border-2 border-primary/40 border-t-primary animate-spin" />
+          </div>
+        </section>
+      ) : banners.length > 0 && firstBannerReady ? (
         <section className="relative z-10 w-full h-[180px] sm:h-[280px] md:h-[400px] lg:h-[60vh] lg:min-h-[320px] lg:max-h-[640px] bg-black">
           <div ref={emblaRef} className="h-full overflow-hidden">
             <div className="flex h-full">
               {banners.map((banner, idx) => {
                 const isLast = idx === banners.length - 1;
                 const hasText = banner.title && banner.title.trim() !== "";
-                const slideLink = banner.link || (authed ? "/dashboard" : "/auth");
+                const slideLink =
+                  banner.link || (authed ? "/dashboard" : "/auth");
 
                 const slideContent = (
                   <>
@@ -314,7 +385,8 @@ function Landing() {
                     {hasText && (
                       <div className="relative z-10 px-10 sm:px-16 md:px-20 max-w-2xl w-full space-y-3">
                         <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/20 border border-primary/40 px-2.5 py-1 text-[9px] sm:text-[10px] font-bold text-primary uppercase tracking-widest">
-                          <Flame className="h-2.5 w-2.5" /> Tank Strength & Conditioning
+                          <Flame className="h-2.5 w-2.5" /> Tank Strength &
+                          Conditioning
                         </div>
                         <h2 className="text-2xl sm:text-4xl md:text-5xl font-extrabold leading-tight text-white drop-shadow-lg">
                           {banner.title}
@@ -327,7 +399,11 @@ function Landing() {
                             to={slideLink}
                             className="inline-flex items-center gap-2 rounded-lg gradient-primary px-5 py-2 sm:px-6 sm:py-2.5 text-xs sm:text-sm font-bold text-primary-foreground shadow-glow transition-all hover:scale-105 hover:brightness-110"
                           >
-                            {authed ? "Open Portal" : (isLast ? "Join the Gym" : "Get Started")}
+                            {authed
+                              ? "Open Portal"
+                              : isLast
+                                ? "Join the Gym"
+                                : "Get Started"}
                             <ArrowRight className="h-3.5 w-3.5" />
                           </Link>
                           {idx === 0 && !authed && (
@@ -350,7 +426,10 @@ function Landing() {
                     className="relative min-w-0 shrink-0 grow-0 basis-full h-full flex items-center will-change-transform"
                   >
                     {!hasText ? (
-                      <Link to={slideLink} className="absolute inset-0 z-20 block w-full h-full cursor-pointer">
+                      <Link
+                        to={slideLink}
+                        className="absolute inset-0 z-20 block w-full h-full cursor-pointer"
+                      >
                         {slideContent}
                       </Link>
                     ) : (
@@ -400,13 +479,15 @@ function Landing() {
               <div className="absolute bottom-0 left-0 right-0 z-20 h-[3px] bg-white/10">
                 <div
                   className="h-full bg-primary transition-all duration-300"
-                  style={{ width: `${((selectedIndex + 1) / banners.length) * 100}%` }}
+                  style={{
+                    width: `${((selectedIndex + 1) / banners.length) * 100}%`,
+                  }}
                 />
               </div>
             </>
           )}
         </section>
-      )}
+      ) : null}
 
       {/* Value Proposition Grid */}
       <section className="relative z-10 mx-auto max-w-5xl px-6 py-12">
@@ -526,20 +607,27 @@ function Landing() {
             No active plans are currently listed. Please contact the front desk.
           </div>
         ) : (
-          <div className={plans.length === 1 
-            ? "flex justify-center max-w-sm mx-auto w-full"
-            : "grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 justify-center max-w-5xl mx-auto"
-          }>
+          <div
+            className={
+              plans.length === 1
+                ? "flex justify-center max-w-sm mx-auto w-full"
+                : "grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 justify-center max-w-5xl mx-auto"
+            }
+          >
             {plans.map((p) => {
-              const isGrandOpening = p.name.toLowerCase().includes("grand opening");
+              const isGrandOpening = p.name
+                .toLowerCase()
+                .includes("grand opening");
               const isPopular =
-                !isGrandOpening && (
-                  p.name.toLowerCase().includes("popular") ||
+                !isGrandOpening &&
+                (p.name.toLowerCase().includes("popular") ||
                   p.name.toLowerCase().includes("gold") ||
-                  p.name.toLowerCase().includes("standard")
-                );
+                  p.name.toLowerCase().includes("standard"));
               const features = p.description
-                ? p.description.split("\n").map((f) => f.trim()).filter(Boolean)
+                ? p.description
+                    .split("\n")
+                    .map((f) => f.trim())
+                    .filter(Boolean)
                 : [
                     "Access to all premium facilities",
                     "Free initial evaluation with coach",
@@ -555,9 +643,11 @@ function Landing() {
                   }`}
                 >
                   {/* Decorative top-right light leak */}
-                  <div className={`absolute top-0 right-0 -mt-10 -mr-10 w-28 h-28 rounded-full blur-2xl pointer-events-none opacity-40 transition-all duration-300 ${
-                    isPopular || isGrandOpening ? "bg-primary" : "bg-white/10"
-                  }`} />
+                  <div
+                    className={`absolute top-0 right-0 -mt-10 -mr-10 w-28 h-28 rounded-full blur-2xl pointer-events-none opacity-40 transition-all duration-300 ${
+                      isPopular || isGrandOpening ? "bg-primary" : "bg-white/10"
+                    }`}
+                  />
 
                   <div className="relative z-10">
                     <div className="flex items-center justify-between gap-4 mb-3 min-h-[22px]">
@@ -584,7 +674,10 @@ function Landing() {
 
                     <ul className="space-y-3.5 text-xs">
                       {features.map((feature, idx) => (
-                        <li key={idx} className="flex items-center gap-3 text-slate-300">
+                        <li
+                          key={idx}
+                          className="flex items-center gap-3 text-slate-300"
+                        >
                           <div className="rounded-full bg-emerald-500/10 p-0.5 text-emerald-400 border border-emerald-500/20 shadow-sm shrink-0">
                             <Check className="h-3.5 w-3.5" />
                           </div>
@@ -620,12 +713,15 @@ function Landing() {
             Our Gym
           </h2>
           <p className="mx-auto mt-3 max-w-2xl text-sm text-muted-foreground font-semibold">
-            Take a look inside Tank by Tapan. Explore our elite facilities, equipment, and training atmosphere.
+            Take a look inside Tank by Tapan. Explore our elite facilities,
+            equipment, and training atmosphere.
           </p>
         </div>
 
         {photos.length === 0 ? (
-          <p className="text-center text-sm text-muted-foreground py-10">No photos uploaded yet.</p>
+          <p className="text-center text-sm text-muted-foreground py-10">
+            No photos uploaded yet.
+          </p>
         ) : (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             {photos.slice(0, 4).map((photo, i) => (
@@ -640,7 +736,9 @@ function Landing() {
                   className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
-                  <span className="text-[10px] font-black text-white uppercase tracking-wider">Facility View #{i + 1}</span>
+                  <span className="text-[10px] font-black text-white uppercase tracking-wider">
+                    Facility View #{i + 1}
+                  </span>
                 </div>
               </div>
             ))}
@@ -657,15 +755,20 @@ function Landing() {
               <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary">
                 <Mail className="h-3.5 w-3.5" /> Contact
               </div>
-              <h3 className="text-xl font-bold text-foreground">Have Questions?</h3>
+              <h3 className="text-xl font-bold text-foreground">
+                Have Questions?
+              </h3>
               <p className="text-xs text-muted-foreground font-medium">
-                Drop us a message below and our team will get back to you regarding membership options, queries, or personal training.
+                Drop us a message below and our team will get back to you
+                regarding membership options, queries, or personal training.
               </p>
             </div>
 
             <form onSubmit={handleContactSubmit} className="space-y-4 pt-2">
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Name</label>
+                <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Name
+                </label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">
                     <User className="h-4 w-4" />
@@ -683,7 +786,9 @@ function Landing() {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Email</label>
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Email
+                  </label>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">
                       <Mail className="h-4 w-4" />
@@ -700,7 +805,9 @@ function Landing() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Phone (Optional)</label>
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Phone (Optional)
+                  </label>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">
                       <Phone className="h-4 w-4" />
@@ -717,7 +824,9 @@ function Landing() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Message</label>
+                <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Message
+                </label>
                 <textarea
                   required
                   rows={4}
@@ -756,17 +865,23 @@ function Landing() {
                 Our Gym Location
               </h2>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Come train with us in person! We are located at Kasganj, Uttar Pradesh, with premium workout spaces, heavy plates, and top-tier equipment.
+                Come train with us in person! We are located at Kasganj, Uttar
+                Pradesh, with premium workout spaces, heavy plates, and top-tier
+                equipment.
               </p>
-              
+
               <div className="space-y-3 pt-2">
                 <div className="flex gap-3 items-start">
                   <div className="mt-0.5 rounded-lg bg-primary/10 p-2 text-primary">
                     <MapPin className="h-4 w-4" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-foreground">Address</h4>
-                    <p className="text-xs text-muted-foreground mt-0.5 font-medium">TaNK By TAPAN, Kasganj, Uttar Pradesh 207123</p>
+                    <h4 className="text-sm font-bold text-foreground">
+                      Address
+                    </h4>
+                    <p className="text-xs text-muted-foreground mt-0.5 font-medium">
+                      TaNK By TAPAN, Kasganj, Uttar Pradesh 207123
+                    </p>
                   </div>
                 </div>
               </div>
@@ -785,7 +900,7 @@ function Landing() {
                 className="h-full w-full"
               />
             </div>
-            
+
             <a
               href="https://www.google.com/maps/place/TaNK+By+TAPAN/@27.7914659,78.8333964,17z/data=!3m1!4b1!4m6!3m5!1s0x39751904b0e512a7:0xf120924df11203d3!8m2!3d27.7914659!4d78.8333964!16s%2Fg%2F11z7lgt4wz!18m1!1e1?entry=ttu&g_ep=EgoyMDI2MDYxNi4wIKXMDSoASAFQAw%3D%3D"
               target="_blank"

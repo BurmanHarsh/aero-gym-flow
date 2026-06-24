@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -13,14 +13,15 @@ import { Search, Plus, Phone, Mail, Calendar, User, Upload, Trash2, Edit2, Shiel
 import { toast } from "sonner";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { sendWelcomeEmail, sendReceiptEmail } from "@/lib/aerogym/email.functions";
+import { getAuthCache } from "@/routes/_authenticated/route";
 
 export const Route = createFileRoute("/_authenticated/members")({
   head: () => ({ meta: [{ title: "Members - Tank by Tapan" }] }),
-  beforeLoad: async () => {
-    const { data } = await supabase.auth.getUser();
-    if (!data.user) throw redirect({ to: "/auth" });
-    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id).in("role", ["admin", "front_desk"]);
-    if (!roles || roles.length === 0) throw redirect({ to: "/dashboard" });
+  beforeLoad: () => {
+    const cached = getAuthCache();
+    if (!cached) throw redirect({ to: "/auth" });
+    const isStaff = cached.roles.includes("admin") || cached.roles.includes("front_desk");
+    if (!isStaff) throw redirect({ to: "/dashboard" });
   },
   component: MembersPage,
 });
@@ -136,12 +137,17 @@ function MembersPage() {
 
   useEffect(() => { load(true); }, []);
 
-  const filtered = rows.filter((r) => {
+  const activeCount = useMemo(() => rows.filter((r) => r.status === "active").length, [rows]);
+  const inactiveCount = useMemo(() => rows.filter((r) => r.status !== "active").length, [rows]);
+
+  const filtered = useMemo(() => {
     const t = q.toLowerCase();
-    const matchesSearch = !t || r.full_name.toLowerCase().includes(t) || r.phone.includes(t) || r.member_code.toLowerCase().includes(t);
-    const matchesTab = activeTab === "active" ? r.status === "active" : r.status !== "active";
-    return matchesSearch && matchesTab;
-  });
+    return rows.filter((r) => {
+      const matchesSearch = !t || r.full_name.toLowerCase().includes(t) || r.phone.includes(t) || r.member_code.toLowerCase().includes(t);
+      const matchesTab = activeTab === "active" ? r.status === "active" : r.status !== "active";
+      return matchesSearch && matchesTab;
+    });
+  }, [rows, q, activeTab]);
 
   const isStaff = me.isAdmin || me.roles.includes("front_desk");
 
@@ -239,7 +245,7 @@ function MembersPage() {
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Members</h1>
-          <p className="text-sm text-muted-foreground">{rows.length}{hasMore ? "+" : ""} total · {rows.filter((r) => r.status === "active").length} active</p>
+          <p className="text-sm text-muted-foreground">{rows.length}{hasMore ? "+" : ""} total · {activeCount} active</p>
         </div>
         {isStaff && (
           <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (next) load(); }}>
@@ -260,10 +266,10 @@ function MembersPage() {
         <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as "active" | "inactive")} className="w-full space-y-4">
           <TabsList className="bg-card border border-border/80 p-1">
             <TabsTrigger value="active" className="cursor-pointer">
-              Active Member ({rows.filter((r) => r.status === "active").length})
+              Active Member ({activeCount})
             </TabsTrigger>
             <TabsTrigger value="inactive" className="cursor-pointer">
-              No Longer / Removed ({rows.filter((r) => r.status !== "active").length})
+              No Longer / Removed ({inactiveCount})
             </TabsTrigger>
           </TabsList>
 
