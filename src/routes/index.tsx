@@ -6,6 +6,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { getOptimizedImageUrl } from "@/lib/utils";
 import { sendContactMessage } from "@/lib/aerogym/email.functions";
 import { toast } from "sonner";
+import { Turnstile } from "@marsidev/react-turnstile";
 import {
   ArrowRight,
   Check,
@@ -75,10 +76,17 @@ function Landing() {
   const [contactPhone, setContactPhone] = useState("");
   const [contactMessage, setContactMessage] = useState("");
   const [sendingQuery, setSendingQuery] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileKey, setTurnstileKey] = useState(0);
 
   async function handleContactSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (sendingQuery) return;
+
+    if (!turnstileToken) {
+      toast.error("Please complete the security check.");
+      return;
+    }
 
     setSendingQuery(true);
     try {
@@ -88,6 +96,7 @@ function Landing() {
           email: contactEmail,
           phone: contactPhone || undefined,
           message: contactMessage,
+          token: turnstileToken,
         },
       });
       toast.success("Query sent successfully! We'll contact you soon.");
@@ -95,6 +104,8 @@ function Landing() {
       setContactEmail("");
       setContactPhone("");
       setContactMessage("");
+      setTurnstileToken(null);
+      setTurnstileKey((prev) => prev + 1);
     } catch (err: any) {
       toast.error(err.message || "Failed to send contact query.");
     } finally {
@@ -834,6 +845,16 @@ function Landing() {
                   onChange={(e) => setContactMessage(e.target.value)}
                   placeholder="How can we help you achieve your goals?"
                   className="w-full rounded-xl border border-border bg-background/50 p-3 text-xs placeholder:text-muted-foreground/60 focus:border-primary/50 focus:outline-none resize-none"
+                />
+              </div>
+              <div className="flex justify-center py-2">
+                <Turnstile
+                  key={turnstileKey}
+                  siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY || "0x4AAAAAADqObj9GnIuH3Kkn"}
+                  options={{ theme: "dark" }}
+                  onSuccess={(token) => setTurnstileToken(token)}
+                  onError={() => setTurnstileToken(null)}
+                  onExpire={() => setTurnstileToken(null)}
                 />
               </div>
 

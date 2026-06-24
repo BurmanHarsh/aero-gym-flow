@@ -407,15 +407,41 @@ export const sendInventorySaleEmail = createServerFn({ method: "POST" })
   });
 
 export const sendContactMessage = createServerFn({ method: "POST" })
-  .inputValidator((d: { name: string; email: string; phone?: string; message: string }) =>
+  .inputValidator((d: { name: string; email: string; phone?: string; message: string; token: string }) =>
     z.object({
       name: z.string().min(1, "Name is required"),
       email: z.string().email("Invalid email address"),
       phone: z.string().optional(),
       message: z.string().min(10, "Message must be at least 10 characters"),
+      token: z.string().min(1, "Captcha token is required"),
     }).parse(d)
   )
   .handler(async ({ data }) => {
+    // Verify Turnstile Token
+    const secretKey = process.env.TURNSTILE_SECRET_KEY;
+    if (!secretKey) {
+      console.error("TURNSTILE_SECRET_KEY is not configured in .env");
+      throw new Error("Server configuration error: missing Turnstile key.");
+    }
+
+    try {
+      const verifyRes = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          secret: secretKey,
+          response: data.token,
+        }),
+      });
+
+      const verifyData = await verifyRes.json();
+      if (!verifyData.success) {
+        throw new Error("Captcha verification failed. Please try again.");
+      }
+    } catch (err: any) {
+      throw new Error(err.message || "Failed to verify Captcha security check.");
+    }
+
     const from = "Tank Contact Form <contact@tankbytapan.in>";
     const to = "tankyado@gmail.com"; // Admin's email
     const body = `
