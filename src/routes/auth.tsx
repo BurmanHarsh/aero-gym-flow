@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dumbbell, Loader2, Eye, EyeOff, Mail, Lock } from "lucide-react";
 import { toast } from "sonner";
+import { Turnstile } from "@marsidev/react-turnstile";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({ meta: [{ title: "Sign in · Tank by Tapan" }] }),
@@ -24,6 +25,8 @@ function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [signupDone, setSignupDone] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileKey, setTurnstileKey] = useState(0);
 
   // Redirect to dashboard if already logged in
   useEffect(() => {
@@ -43,6 +46,8 @@ function AuthPage() {
     setPassword("");
     setConfirmPassword("");
     setSignupDone(false);
+    setTurnstileToken(null);
+    setTurnstileKey((prev) => prev + 1);
   }
 
   async function handleGoogle() {
@@ -60,10 +65,21 @@ function AuthPage() {
   async function handleEmailSignIn(e: React.FormEvent) {
     e.preventDefault();
     if (!email.trim() || !password) return;
+    if (!turnstileToken) {
+      toast.error("Please complete the security check.");
+      return;
+    }
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+      options: { captchaToken: turnstileToken }
+    });
     if (error) {
       toast.error(error.message ?? "Sign in failed");
+      // Reset CAPTCHA on failure
+      setTurnstileToken(null);
+      setTurnstileKey((prev) => prev + 1);
     }
     setLoading(false);
   }
@@ -79,14 +95,24 @@ function AuthPage() {
       toast.error("Password must be at least 6 characters");
       return;
     }
+    if (!turnstileToken) {
+      toast.error("Please complete the security check.");
+      return;
+    }
     setLoading(true);
     const { error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
-      options: { emailRedirectTo: window.location.origin + "/auth" },
+      options: {
+        emailRedirectTo: window.location.origin + "/auth",
+        captchaToken: turnstileToken,
+      },
     });
     if (error) {
       toast.error(error.message ?? "Sign up failed");
+      // Reset CAPTCHA on failure
+      setTurnstileToken(null);
+      setTurnstileKey((prev) => prev + 1);
     } else {
       setSignupDone(true);
     }
@@ -98,14 +124,23 @@ function AuthPage() {
       toast.error("Enter your email address first, then click Forgot Password");
       return;
     }
+    if (!turnstileToken) {
+      toast.error("Please complete the security check first.");
+      return;
+    }
     setLoading(true);
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
       redirectTo: window.location.origin + "/auth",
+      captchaToken: turnstileToken,
     });
     if (error) {
       toast.error(error.message ?? "Failed to send reset email");
+      setTurnstileToken(null);
+      setTurnstileKey((prev) => prev + 1);
     } else {
       toast.success("Password reset email sent! Check your inbox.");
+      setTurnstileToken(null);
+      setTurnstileKey((prev) => prev + 1);
     }
     setLoading(false);
   }
@@ -307,6 +342,18 @@ function AuthPage() {
                     </button>
                   </div>
                 )}
+
+                {/* Turnstile Security Check */}
+                <div className="flex justify-center py-2">
+                  <Turnstile
+                    key={turnstileKey}
+                    siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY || "0x4AAAAAADqObj9GnIuH3Kkn"}
+                    options={{ theme: "dark" }}
+                    onSuccess={(token) => setTurnstileToken(token)}
+                    onError={() => setTurnstileToken(null)}
+                    onExpire={() => setTurnstileToken(null)}
+                  />
+                </div>
 
                 <Button
                   id={mode === "signin" ? "email-signin-btn" : "email-signup-btn"}
