@@ -456,3 +456,60 @@ export const sendContactMessage = createServerFn({ method: "POST" })
     `;
     return send(from, to, `New Contact Query from ${data.name}`, shell("Contact Form Submission", body));
   });
+
+export const sendMemberEditEmail = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: {
+    to: string;
+    name: string;
+    changes: { field: string; oldValue: string; newValue: string }[];
+  }) =>
+    z.object({
+      to: z.string().email(),
+      name: z.string().min(1),
+      changes: z.array(z.object({
+        field: z.string(),
+        oldValue: z.string(),
+        newValue: z.string(),
+      })),
+    }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const from = "Tank by Tapan <support@tankbytapan.in>";
+    
+    let changesHtml = "";
+    data.changes.forEach(change => {
+      changesHtml += `
+        <tr>
+          <td style="padding: 8px 0; border-bottom: 1px solid #1f2747; color:#7b8299"><strong>${change.field}</strong></td>
+          <td style="padding: 8px 0; border-bottom: 1px solid #1f2747; color:#e6e9f2; text-decoration: line-through; font-size: 12px; padding-right: 8px;">${change.oldValue || "—"}</td>
+          <td style="padding: 8px 0; border-bottom: 1px solid #1f2747; color:#10b981; font-weight: 600;">${change.newValue || "—"}</td>
+        </tr>
+      `;
+    });
+
+    const body = `
+      <p>Hi ${data.name},</p>
+      <p>This is to notify you that your member profile has been updated by the gym management. Here is a summary of the changes made:</p>
+      <table style="width:100%; margin-top:16px; border-collapse: collapse; font-size:13px">
+        <thead>
+          <tr style="border-bottom: 2px solid #1f2747">
+            <th style="text-align:left; padding-bottom: 8px; color:#7b8299">Field</th>
+            <th style="text-align:left; padding-bottom: 8px; color:#7b8299">Previous Value</th>
+            <th style="text-align:left; padding-bottom: 8px; color:#7b8299">New Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${changesHtml}
+        </tbody>
+      </table>
+      <p style="margin-top:20px;">If you did not authorize these changes, or if they appear incorrect, please contact the front desk immediately.</p>
+    `;
+
+    return send(
+      from,
+      data.to,
+      `Profile Updated · Tank by Tapan`,
+      shell("Profile Updated", body)
+    );
+  });

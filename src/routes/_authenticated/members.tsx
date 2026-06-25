@@ -12,7 +12,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Search, Plus, Phone, Mail, Calendar, User, Upload, Trash2, Edit2, ShieldAlert, HeartPulse, Activity, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { sendWelcomeEmail, sendReceiptEmail } from "@/lib/aerogym/email.functions";
+import { sendWelcomeEmail, sendReceiptEmail, sendMemberEditEmail } from "@/lib/aerogym/email.functions";
 import { getAuthCache } from "@/routes/_authenticated/route";
 
 export const Route = createFileRoute("/_authenticated/members")({
@@ -212,17 +212,30 @@ function MembersPage() {
               <div className="flex items-center gap-3 shrink-0">
                 <StatusPill status={m.status} />
                 {isStaff && (
-                  <Button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDeletingMember(m);
-                    }}
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingMember(m);
+                      }}
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeletingMember(m);
+                      }}
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 )}
               </div>
             </div>
@@ -1179,6 +1192,7 @@ function MemberProfileDialog({
 function EditMemberDialog({ member, plans, onClose }: { member: Member; plans: Plan[]; onClose: () => void }) {
   const me = useCurrentUser();
   const isStaff = me.isStaff;
+  const memberEditEmail = useServerFn(sendMemberEditEmail);
   const [fullName, setFullName] = useState(member.full_name);
   const [phone, setPhone] = useState(member.phone);
   const [email, setEmail] = useState(member.email ?? "");
@@ -1191,6 +1205,21 @@ function EditMemberDialog({ member, plans, onClose }: { member: Member; plans: P
   const [medicalInfo, setMedicalInfo] = useState(member.medical_info ?? "");
   const [notes, setNotes] = useState(member.notes ?? "");
   const [busy, setBusy] = useState(false);
+
+  const [joinedAt, setJoinedAt] = useState(member.joined_at ? member.joined_at.slice(0, 10) : "");
+  const [expiresAt, setExpiresAt] = useState(member.expires_at ? member.expires_at.slice(0, 10) : "");
+
+  useEffect(() => {
+    const plan = plans.find((p) => p.id === planId);
+    if (plan && joinedAt) {
+      const expDate = new Date(new Date(joinedAt).getTime() + plan.duration_days * 86400000)
+        .toISOString()
+        .slice(0, 10);
+      setExpiresAt(expDate);
+    } else if (!planId) {
+      setExpiresAt("");
+    }
+  }, [joinedAt, planId, plans]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -1241,6 +1270,35 @@ function EditMemberDialog({ member, plans, onClose }: { member: Member; plans: P
       }
     }
 
+    // Calculate profile changes for email notification before we submit
+    const changes: { field: string; oldValue: string; newValue: string }[] = [];
+    const checkChange = (label: string, oldVal: any, newVal: any) => {
+      const cleanOld = (oldVal ?? "").toString().trim();
+      const cleanNew = (newVal ?? "").toString().trim();
+      if (cleanOld !== cleanNew) {
+        changes.push({ field: label, oldValue: cleanOld, newValue: cleanNew });
+      }
+    };
+
+    checkChange("Full Name", member.full_name, fullName);
+    checkChange("Phone Number", member.phone, cleanPhone);
+    checkChange("Email Address", member.email, email);
+    checkChange("Gender", member.gender, gender);
+    checkChange("Date of Birth", member.date_of_birth, dob);
+    checkChange("Address", member.address, address);
+    checkChange("Membership Status", member.status, status);
+    checkChange("Emergency Contact", member.emergency_contact, emergencyContact);
+    checkChange("Medical Information", member.medical_info, medicalInfo);
+    checkChange("Notes", member.notes, notes);
+    checkChange("Joining Date", member.joined_at, joinedAt);
+    checkChange("Expiry Date", member.expires_at, expiresAt);
+
+    if (member.plan_id !== planId) {
+      const oldPlan = plans.find(p => p.id === member.plan_id)?.name ?? "None";
+      const newPlan = plans.find(p => p.id === planId)?.name ?? "None";
+      changes.push({ field: "Membership Plan", oldValue: oldPlan, newValue: newPlan });
+    }
+
     const { error } = await supabase
       .from("members")
       .update({
@@ -1255,6 +1313,8 @@ function EditMemberDialog({ member, plans, onClose }: { member: Member; plans: P
         emergency_contact: emergencyContact.trim() || null,
         medical_info: medicalInfo.trim() || null,
         notes: notes.trim() || null,
+        joined_at: joinedAt,
+        expires_at: expiresAt || null,
       })
       .eq("id", member.id);
 
@@ -1277,9 +1337,25 @@ function EditMemberDialog({ member, plans, onClose }: { member: Member; plans: P
         phone: cleanPhone,
         email: email.trim() || null,
         plan_id: planId || null,
-        status
+        status,
+        joined_at: joinedAt,
+        expires_at: expiresAt || null,
       }
     });
+
+    // Send profile update email if any changes were made and email is available
+    const targetEmail = email.trim() || member.email;
+    if (targetEmail && changes.length > 0) {
+      memberEditEmail({
+        data: {
+          to: targetEmail,
+          name: fullName.trim() || member.full_name,
+          changes,
+        }
+      }).catch((err) => {
+        console.error("Failed to send profile update email:", err);
+      });
+    }
 
     toast.success("Member profile updated successfully");
     setBusy(false);
@@ -1324,6 +1400,28 @@ function EditMemberDialog({ member, plans, onClose }: { member: Member; plans: P
                 ))}
               </SelectContent>
             </Select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label htmlFor="edit-joined-at">Joining Date</Label>
+            <Input
+              id="edit-joined-at"
+              type="date"
+              value={joinedAt}
+              onChange={(e) => setJoinedAt(e.target.value)}
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor="edit-expires-at">Expiry Date</Label>
+            <Input
+              id="edit-expires-at"
+              type="date"
+              value={expiresAt}
+              onChange={(e) => setExpiresAt(e.target.value)}
+            />
           </div>
         </div>
 
