@@ -33,3 +33,10 @@ dist-ssr
 .env
 .vercel
 .env*
+
+api-map.md
+architecture.md
+memory.md
+routes.md
+database-map.md
+dependency-graph.md

@@ -612,7 +612,7 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
   }
 
   return (
-    <DialogContent>
+    <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto scrollbar-thin">
       <DialogHeader><DialogTitle>Add member</DialogTitle></DialogHeader>
       <form onSubmit={submit} className="space-y-3">
         <div><Label>Full name</Label><Input value={full_name} onChange={(e) => setName(e.target.value)} required /></div>
