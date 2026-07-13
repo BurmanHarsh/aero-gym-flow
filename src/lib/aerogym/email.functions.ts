@@ -418,28 +418,33 @@ export const sendContactMessage = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     // Verify Turnstile Token
-    const secretKey = process.env.TURNSTILE_SECRET_KEY;
-    if (!secretKey) {
-      console.error("TURNSTILE_SECRET_KEY is not configured in .env");
-      throw new Error("Server configuration error: missing Turnstile key.");
-    }
-
-    try {
-      const verifyRes = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          secret: secretKey,
-          response: data.token,
-        }),
-      });
-
-      const verifyData = await verifyRes.json();
-      if (!verifyData.success) {
-        throw new Error("Captcha verification failed. Please try again.");
+    const isDev = process.env.NODE_ENV === "development" || !process.env.NODE_ENV;
+    if (isDev && data.token === "localhost_bypass") {
+      console.log("Localhost bypass of Captcha verification");
+    } else {
+      const secretKey = process.env.TURNSTILE_SECRET_KEY;
+      if (!secretKey) {
+        console.error("TURNSTILE_SECRET_KEY is not configured in .env");
+        throw new Error("Server configuration error: missing Turnstile key.");
       }
-    } catch (err: any) {
-      throw new Error(err.message || "Failed to verify Captcha security check.");
+
+      try {
+        const verifyRes = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            secret: secretKey,
+            response: data.token,
+          }),
+        });
+
+        const verifyData = await verifyRes.json();
+        if (!verifyData.success) {
+          throw new Error("Captcha verification failed. Please try again.");
+        }
+      } catch (err: any) {
+        throw new Error(err.message || "Failed to verify Captcha security check.");
+      }
     }
 
     const from = "Tank Contact Form <contact@tankbytapan.in>";

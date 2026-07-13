@@ -78,12 +78,14 @@ function Landing() {
   const [sendingQuery, setSendingQuery] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileKey, setTurnstileKey] = useState(0);
+  const isLocalhost = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
 
   async function handleContactSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (sendingQuery) return;
 
-    if (!turnstileToken) {
+    const tokenToSend = isLocalhost ? (turnstileToken || "localhost_bypass") : turnstileToken;
+    if (!isLocalhost && !tokenToSend) {
       toast.error("Please complete the security check.");
       return;
     }
@@ -96,7 +98,7 @@ function Landing() {
           email: contactEmail,
           phone: contactPhone || undefined,
           message: contactMessage,
-          token: turnstileToken,
+          token: tokenToSend!,
         },
       });
       toast.success("Query sent successfully! We'll contact you soon.");

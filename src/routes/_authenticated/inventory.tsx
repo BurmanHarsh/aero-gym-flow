@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,16 @@ import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { sendInventorySaleEmail } from "@/lib/aerogym/email.functions";
 import { getAuthCache } from "@/routes/_authenticated/route";
+import {
+  posLookupProductByBarcode,
+  posRegisterProduct,
+  posRestockProduct,
+  posCheckoutCart,
+  posGetBillingStats,
+  posGenerateReportPDF
+} from "@/lib/aerogym/pos.functions";
+import { Barcode, ReceiptText, CalendarRange, Download, Ban, Headphones, Flame, Dumbbell, AlertTriangle, Sparkles, Footprints, Shield, Key } from "lucide-react";
+import { BarChart as RechartsBarChart, Bar as RechartsBar, XAxis as RechartsXAxis, YAxis as RechartsYAxis, CartesianGrid as RechartsCartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer as RechartsResponsiveContainer } from "recharts";
 
 export const Route = createFileRoute("/_authenticated/inventory")({
   head: () => ({ meta: [{ title: "Inventory · Tank by Tapan" }] }),
@@ -49,6 +59,10 @@ interface InventoryItem {
   sale_price_cents: number | null;
   supplier: string | null;
   photo_url: string | null;
+  barcode: string | null;
+  sku: string | null;
+  gst_percentage: number;
+  active: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -79,7 +93,7 @@ function getCategoryIcon(category: string) {
 }
 
 async function insertInventoryItem(item: Omit<InventoryItem, "id" | "created_at" | "updated_at">) {
-  const { error } = await supabase
+  const { error } = await (supabase as any)
     .from("inventory_items")
     .insert({
       name: item.name,
@@ -91,13 +105,17 @@ async function insertInventoryItem(item: Omit<InventoryItem, "id" | "created_at"
       supplier: item.supplier,
       description: item.description,
       photo_url: item.photo_url,
+      barcode: item.barcode,
+      sku: item.sku,
+      gst_percentage: item.gst_percentage,
+      active: item.active,
     });
     
   if (error) throw error;
 }
 
 async function updateInventoryItem(item: Partial<InventoryItem> & { id: string }) {
-  const { error } = await supabase
+  const { error } = await (supabase as any)
     .from("inventory_items")
     .update({
       name: item.name,
@@ -109,6 +127,10 @@ async function updateInventoryItem(item: Partial<InventoryItem> & { id: string }
       supplier: item.supplier,
       description: item.description,
       photo_url: item.photo_url,
+      barcode: item.barcode,
+      sku: item.sku,
+      gst_percentage: item.gst_percentage,
+      active: item.active,
     })
     .eq("id", item.id);
     
@@ -142,7 +164,7 @@ function InventoryPage() {
   const [salesLoading, setSalesLoading] = useState(false);
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [activeTab, setActiveTab] = useState<"catalog" | "sales">("catalog");
+  const [activeTab, setActiveTab] = useState<"catalog" | "sales" | "analytics">("catalog");
 
   const [addOpen, setAddOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
@@ -307,10 +329,20 @@ function InventoryPage() {
               >
                 Sold Items
               </button>
+              <button
+                onClick={() => setActiveTab("analytics")}
+                className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition ${
+                  activeTab === "analytics"
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                POS Analytics
+              </button>
             </div>
           )}
 
-          {activeTab === "catalog" ? (
+          {activeTab === "catalog" && (
             <>
           {/* Summary KPI Cards (Staff Only) */}
           {isStaff && (
@@ -463,7 +495,9 @@ function InventoryPage() {
             )}
           </div>
         </>
-      ) : (
+      )}
+
+      {activeTab === "sales" && (
         /* Sold Items view */
         <div className="space-y-6">
           {(() => {
@@ -608,6 +642,10 @@ function InventoryPage() {
             );
           })()}
         </div>
+      )}
+
+      {activeTab === "analytics" && (
+        <POSAnalyticsView isAdmin={me.isAdmin} />
       )}
     </>
   )}
@@ -844,6 +882,9 @@ function AddItemDialog({ onClose, isAdmin }: { onClose: () => void; isAdmin: boo
   const [supplier, setSupplier] = useState("");
   const [description, setDescription] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [barcode, setBarcode] = useState("");
+  const [sku, setSku] = useState("");
+  const [gstPercentage, setGstPercentage] = useState("18");
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
@@ -871,6 +912,10 @@ function AddItemDialog({ onClose, isAdmin }: { onClose: () => void; isAdmin: boo
         supplier: supplier.trim() || null,
         description: description.trim() || null,
         photo_url: uploadedUrl,
+        barcode: barcode.trim() || null,
+        sku: sku.trim() || null,
+        gst_percentage: parseInt(gstPercentage) || 0,
+        active: true,
       });
 
       toast.success("Inventory item added successfully");
@@ -896,6 +941,24 @@ function AddItemDialog({ onClose, isAdmin }: { onClose: () => void; isAdmin: boo
             placeholder="e.g. Optimum Whey 1kg, Gym T-Shirt L"
             required
           />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>Barcode</Label>
+            <Input
+              value={barcode}
+              onChange={(e) => setBarcode(e.target.value)}
+              placeholder="Scan or type barcode"
+            />
+          </div>
+          <div>
+            <Label>SKU (Optional)</Label>
+            <Input
+              value={sku}
+              onChange={(e) => setSku(e.target.value)}
+              placeholder="e.g. WHEY-CHO-1KG"
+            />
+          </div>
         </div>
         {isAdmin && (
           <div>
@@ -971,7 +1034,7 @@ function AddItemDialog({ onClose, isAdmin }: { onClose: () => void; isAdmin: boo
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <div>
             <Label>Category</Label>
             <Select value={category} onValueChange={setCategory}>
@@ -991,6 +1054,17 @@ function AddItemDialog({ onClose, isAdmin }: { onClose: () => void; isAdmin: boo
               value={supplier}
               onChange={(e) => setSupplier(e.target.value)}
               placeholder="e.g. HealthMart, CleanCare"
+            />
+          </div>
+          <div>
+            <Label>GST %</Label>
+            <Input
+              type="number"
+              min="0"
+              max="100"
+              value={gstPercentage}
+              onChange={(e) => setGstPercentage(e.target.value)}
+              required
             />
           </div>
         </div>
@@ -1026,6 +1100,10 @@ function EditItemDialog({ item, onClose, isAdmin }: { item: InventoryItem; onClo
   const [supplier, setSupplier] = useState(item.supplier ?? "");
   const [description, setDescription] = useState(item.description ?? "");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [barcode, setBarcode] = useState(item.barcode ?? "");
+  const [sku, setSku] = useState(item.sku ?? "");
+  const [gstPercentage, setGstPercentage] = useState(item.gst_percentage.toString());
+  const [active, setActive] = useState(item.active);
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
@@ -1054,6 +1132,10 @@ function EditItemDialog({ item, onClose, isAdmin }: { item: InventoryItem; onClo
         supplier: supplier.trim() || null,
         description: description.trim() || null,
         photo_url: uploadedUrl,
+        barcode: barcode.trim() || null,
+        sku: sku.trim() || null,
+        gst_percentage: parseInt(gstPercentage) || 0,
+        active: active,
       });
 
       toast.success("Inventory item updated successfully");
@@ -1078,6 +1160,24 @@ function EditItemDialog({ item, onClose, isAdmin }: { item: InventoryItem; onClo
             onChange={(e) => setName(e.target.value)}
             required
           />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>Barcode</Label>
+            <Input
+              value={barcode}
+              onChange={(e) => setBarcode(e.target.value)}
+              placeholder="Scan or type barcode"
+            />
+          </div>
+          <div>
+            <Label>SKU (Optional)</Label>
+            <Input
+              value={sku}
+              onChange={(e) => setSku(e.target.value)}
+              placeholder="e.g. WHEY-CHO-1KG"
+            />
+          </div>
         </div>
         {isAdmin && (
           <div>
@@ -1152,7 +1252,7 @@ function EditItemDialog({ item, onClose, isAdmin }: { item: InventoryItem; onClo
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <div>
             <Label>Category</Label>
             <Select value={category} onValueChange={setCategory}>
@@ -1173,15 +1273,40 @@ function EditItemDialog({ item, onClose, isAdmin }: { item: InventoryItem; onClo
               onChange={(e) => setSupplier(e.target.value)}
             />
           </div>
+          <div>
+            <Label>GST %</Label>
+            <Input
+              type="number"
+              min="0"
+              max="100"
+              value={gstPercentage}
+              onChange={(e) => setGstPercentage(e.target.value)}
+              required
+            />
+          </div>
         </div>
 
-        <div>
-          <Label>Description</Label>
-          <Textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={2}
-          />
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>Description</Label>
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+            />
+          </div>
+          <div>
+            <Label>Status</Label>
+            <Select value={active ? "true" : "false"} onValueChange={(val) => setActive(val === "true")}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="true">Active (Available for POS)</SelectItem>
+                <SelectItem value="false">Inactive (Archived)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         <DialogFooter className="pt-2">
           <Button type="button" variant="outline" onClick={onClose} disabled={busy}>Cancel</Button>
@@ -1396,10 +1521,24 @@ interface POSCartViewProps {
   userId?: string | null;
 }
 
+// Payment Service Abstraction
+class MockPaymentService {
+  static async processPayment(method: string, amountCents: number): Promise<{ success: boolean; transactionId: string }> {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const mockTxId = "TXN-PL-" + Math.floor(Math.random() * 89999999 + 10000000);
+        resolve({ success: true, transactionId: mockTxId });
+      }, 1500);
+    });
+  }
+}
+
 function POSCartView({ rows, cart, setCart, onClose, userId }: POSCartViewProps) {
-  const [posSearch, setPosSearch] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "upi">("cash");
+  const [scanValue, setScanValue] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "upi" | "emi">("cash");
   const [busy, setBusy] = useState(false);
+  const [payingPineLabs, setPayingPineLabs] = useState(false);
+  const [checkoutResult, setCheckoutResult] = useState<{ invoice_number: string; sale_id: string } | null>(null);
 
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; percent: number; upto: number } | null>(null);
@@ -1408,8 +1547,29 @@ function POSCartView({ rows, cart, setCart, onClose, userId }: POSCartViewProps)
   const [allProfiles, setAllProfiles] = useState<{ email: string; full_name: string | null }[]>([]);
   const [buyerEmail, setBuyerEmail] = useState("");
   const [showEmailSuggestions, setShowEmailSuggestions] = useState(false);
+
+  const [addProductOpen, setAddProductOpen] = useState(false);
+  const [prefilledBarcode, setPrefilledBarcode] = useState("");
+  const [restockProduct, setRestockProduct] = useState<InventoryItem | null>(null);
+  const [restockQty, setRestockQty] = useState("10");
+
+  const scanInputRef = useRef<HTMLInputElement>(null);
+  const printAreaRef = useRef<HTMLDivElement>(null);
+
   const sendSaleEmailFn = useServerFn(sendInventorySaleEmail);
 
+  // Keep barcode scanner focused
+  useEffect(() => {
+    scanInputRef.current?.focus();
+    const interval = setInterval(() => {
+      if (document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA") {
+        scanInputRef.current?.focus();
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Fetch profiles for autocomplete
   useEffect(() => {
     supabase
       .from("profiles")
@@ -1419,15 +1579,35 @@ function POSCartView({ rows, cart, setCart, onClose, userId }: POSCartViewProps)
       });
   }, []);
 
-  const sellableItems = rows.filter(
-    (item) => item.sale_price_cents && item.sale_price_cents > 0 && item.quantity > 0
-  );
-
-  const filteredItems = sellableItems.filter((item) =>
-    item.name.toLowerCase().includes(posSearch.toLowerCase()) ||
-    (item.category && item.category.toLowerCase().includes(posSearch.toLowerCase())) ||
-    (item.supplier && item.supplier.toLowerCase().includes(posSearch.toLowerCase()))
-  );
+  // Keyboard shortcuts event listener
+  useEffect(() => {
+    const handleGlobalKeys = (e: KeyboardEvent) => {
+      if (e.key === "F2") {
+        e.preventDefault();
+        setPaymentMethod("cash");
+        toast.info("Selected Payment: Cash");
+      } else if (e.key === "F3") {
+        e.preventDefault();
+        setPaymentMethod("card");
+        toast.info("Selected Payment: Card");
+      } else if (e.key === "F4") {
+        e.preventDefault();
+        setPaymentMethod("upi");
+        toast.info("Selected Payment: UPI");
+      } else if (e.key === "F5") {
+        e.preventDefault();
+        setPaymentMethod("emi");
+        toast.info("Selected Payment: EMI");
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        setCart([]);
+        setAppliedCoupon(null);
+        toast.info("Cart cleared");
+      }
+    };
+    window.addEventListener("keydown", handleGlobalKeys);
+    return () => window.removeEventListener("keydown", handleGlobalKeys);
+  }, [setCart]);
 
   const addToCart = (item: InventoryItem) => {
     setCart((prev) => {
@@ -1462,14 +1642,56 @@ function POSCartView({ rows, cart, setCart, onClose, userId }: POSCartViewProps)
 
   const removeFromCart = (itemId: string) => {
     setCart((prev) => prev.filter((i) => i.item.id !== itemId));
-    setAppliedCoupon(null);
+  };
+
+  const handleBarcodeScan = async (barcode: string) => {
+    // 1. Search local state
+    const local = rows.find(r => r.barcode === barcode);
+    if (local) {
+      if (local.quantity <= 0) {
+        toast.error(`"${local.name}" is out of stock!`);
+        return;
+      }
+      addToCart(local);
+      return;
+    }
+
+    // 2. Call server lookup
+    setBusy(true);
+    try {
+      const item = await posLookupProductByBarcode({ data: { barcode } });
+      if (item) {
+        if (item.quantity <= 0) {
+          toast.error(`"${item.name}" is out of stock!`);
+        } else {
+          addToCart(item as any);
+        }
+      } else {
+        // Barcode not found, open Register product
+        toast.info("Barcode not registered. Open registration dialog...");
+        setPrefilledBarcode(barcode);
+        setAddProductOpen(true);
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to search product");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleScanInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const val = scanValue.trim();
+      if (val) {
+        handleBarcodeScan(val);
+        setScanValue("");
+      }
+    }
   };
 
   async function applyCoupon() {
-    if (!couponCode.trim()) {
-      toast.error("Please enter a coupon code");
-      return;
-    }
+    if (!couponCode.trim()) return;
     setCheckingCoupon(true);
     const searchCode = couponCode.trim().toUpperCase();
     try {
@@ -1483,7 +1705,7 @@ function POSCartView({ rows, cart, setCart, onClose, userId }: POSCartViewProps)
       if (error) throw error;
 
       if (!data) {
-        toast.error("Invalid or expired coupon code");
+        toast.error("Invalid or expired coupon");
         setAppliedCoupon(null);
       } else {
         setAppliedCoupon({
@@ -1491,25 +1713,33 @@ function POSCartView({ rows, cart, setCart, onClose, userId }: POSCartViewProps)
           percent: data.discount_percent,
           upto: data.discount_upto_cents,
         });
-        toast.success(`Coupon "${data.code}" applied successfully!`);
+        toast.success(`Coupon "${data.code}" applied!`);
       }
     } catch (err: any) {
-      toast.error(err.message || "Failed to validate coupon");
+      toast.error(err.message || "Coupon verification failed");
     } finally {
       setCheckingCoupon(false);
     }
   }
 
-  const totalCents = cart.reduce(
-    (acc, val) => acc + val.quantity * (val.item.sale_price_cents ?? 0),
-    0
-  );
-
+  // Pricing calculations
+  // Item Cost is purchase_price_cents
+  // Item retail Price is sale_price_cents
+  const subtotalCents = cart.reduce((acc, c) => acc + (c.item.sale_price_cents ?? 0) * c.quantity, 0);
+  const totalGstCents = cart.reduce((acc, c) => {
+    const itemTotal = (c.item.sale_price_cents ?? 0) * c.quantity;
+    return acc + Math.round(itemTotal * c.item.gst_percentage / 100);
+  }, 0);
+  
   let discountCents = 0;
-  if (appliedCoupon && totalCents > 0) {
-    discountCents = Math.min((totalCents * appliedCoupon.percent) / 100, appliedCoupon.upto);
+  const subtotalWithGst = subtotalCents + totalGstCents;
+  if (appliedCoupon && subtotalWithGst > 0) {
+    discountCents = Math.min((subtotalWithGst * appliedCoupon.percent) / 100, appliedCoupon.upto);
   }
-  const finalTotalCents = totalCents - discountCents;
+
+  const grandTotalCents = Math.max(0, subtotalWithGst - discountCents);
+  const cgstCents = Math.round(totalGstCents / 2);
+  const sgstCents = Math.round(totalGstCents / 2);
 
   const handleCheckout = async () => {
     if (cart.length === 0) {
@@ -1518,208 +1748,250 @@ function POSCartView({ rows, cart, setCart, onClose, userId }: POSCartViewProps)
     }
     const emailToUse = buyerEmail.trim();
     if (!emailToUse) {
-      toast.error("Customer Email is required.");
+      toast.error("Customer email is required for POS transactions.");
       return;
     }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(emailToUse)) {
-      toast.error("Please enter a valid email address.");
-      return;
-    }
+
     setBusy(true);
-    try {
-      let distributedDiscountSum = 0;
-      const saleInserts = cart.map((c, index) => {
-        const grossCents = c.quantity * (c.item.sale_price_cents ?? 0);
-        
-        let itemDiscount = 0;
-        if (discountCents > 0 && totalCents > 0) {
-          if (index === cart.length - 1) {
-            itemDiscount = discountCents - distributedDiscountSum;
-          } else {
-            itemDiscount = Math.round((grossCents / totalCents) * discountCents);
-            distributedDiscountSum += itemDiscount;
-          }
-        }
-        
-        const netCents = Math.max(0, grossCents - itemDiscount);
 
-        return supabase.from("inventory_sales").insert({
-          item_id: c.item.id,
-          item_name: c.item.name,
-          quantity: c.quantity,
-          sale_price_cents: c.item.sale_price_cents ?? 0,
-          total_amount_cents: netCents,
-          sold_by: userId || null,
-          payment_method: paymentMethod,
-          coupon_code: appliedCoupon ? appliedCoupon.code : null,
-          coupon_discount_cents: itemDiscount,
-          buyer_email: buyerEmail.trim() || null,
-        });
-      });
+    let transactionId: string | null = null;
 
-      const itemUpdates = cart.map((c) =>
-        supabase
-          .from("inventory_items")
-          .update({ quantity: c.item.quantity - c.quantity })
-          .eq("id", c.item.id)
-      );
-
-      const results = await Promise.all([...saleInserts, ...itemUpdates]);
-      
-      const failed = results.find(r => r.error);
-      if (failed) throw failed.error;
-
-      // Send receipt email to the buyer
-      const matchedProfile = allProfiles.find(p => p.email.toLowerCase() === emailToUse.toLowerCase());
-      const customerName = matchedProfile?.full_name || "Customer";
-      const emailItems = cart.map(c => ({
-        name: c.item.name,
-        quantity: c.quantity,
-        price: money(c.quantity * (c.item.sale_price_cents ?? 0)),
-      }));
-
+    // Simulate Pine Labs if Card/UPI/EMI
+    if (paymentMethod !== "cash") {
+      setPayingPineLabs(true);
       try {
+        const paymentRes = await MockPaymentService.processPayment(paymentMethod, grandTotalCents);
+        if (!paymentRes.success) {
+          throw new Error("Pine Labs POS Payment Rejected");
+        }
+        transactionId = paymentRes.transactionId;
+        toast.success(`Pine Labs Transaction Approved: ${transactionId}`);
+      } catch (err: any) {
+        toast.error(err.message || "POS card swipe failed");
+        setPayingPineLabs(false);
+        setBusy(false);
+        return;
+      }
+      setPayingPineLabs(false);
+    }
+
+    try {
+      // Call server checkout function
+      const result = (await posCheckoutCart({
+        data: {
+          paymentMethod,
+          discountCents,
+          subtotalCents,
+          cgstCents,
+          sgstCents,
+          totalGstCents,
+          grandTotalCents,
+          transactionId,
+          items: cart.map(c => ({
+            itemId: c.item.id,
+            quantity: c.quantity,
+            purchasePriceCents: c.item.purchase_price_cents,
+            sellingPriceCents: c.item.sale_price_cents ?? 0,
+            gstPercentage: c.item.gst_percentage
+          }))
+        }
+      })) as any;
+
+      if (!result?.success) {
+        throw new Error("POS Checkout transaction was rejected by DB");
+      }
+
+      setCheckoutResult(result);
+      toast.success(`Checkout complete! Invoice: ${result.invoice_number}`);
+
+      // Try sending receipt email
+      try {
+        const matched = allProfiles.find(p => p.email.toLowerCase() === emailToUse.toLowerCase());
+        const customerName = matched?.full_name || "Customer";
         await sendSaleEmailFn({
           data: {
             to: emailToUse,
             name: customerName,
-            items: emailItems,
-            totalAmount: money(finalTotalCents),
+            items: cart.map(c => ({
+              name: c.item.name,
+              quantity: c.quantity,
+              price: money(c.quantity * (c.item.sale_price_cents ?? 0))
+            })),
+            totalAmount: money(grandTotalCents),
             paymentMethod,
             couponCode: appliedCoupon ? appliedCoupon.code : null,
-            discountAmount: appliedCoupon ? money(discountCents) : null,
+            discountAmount: appliedCoupon ? money(discountCents) : null
           }
         });
       } catch (emailErr) {
-        console.error("Failed to send sale receipt email:", emailErr);
-        toast.error("Receipt email failed to send, but checkout succeeded.");
+        console.warn("Failed sending receipt email", emailErr);
       }
 
-      toast.success("Transaction completed successfully!");
-      setCart([]);
-      onClose();
+      // Automatically open print sheet
+      setTimeout(() => {
+        window.print();
+        setCart([]);
+        setAppliedCoupon(null);
+        setCheckoutResult(null);
+        setBuyerEmail("");
+      }, 500);
+
     } catch (err: any) {
-      console.error(err);
-      toast.error(err.message || "Failed to process transaction");
+      toast.error(err.message || "Failed completing POS transaction");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRestockSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!restockProduct) return;
+    const qty = parseInt(restockQty);
+    if (isNaN(qty) || qty <= 0) {
+      toast.error("Invalid restock quantity");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await posRestockProduct({
+        data: {
+          id: restockProduct.id,
+          quantityToAdd: qty
+        }
+      });
+      toast.success(`Successfully restocked ${res.name}. New Stock: ${res.newStock}`);
+      setRestockProduct(null);
+    } catch (err: any) {
+      toast.error(err.message || "Restock failed");
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_360px] animate-in fade-in duration-200">
+    <div className="grid gap-6 lg:grid-cols-[1fr_380px] animate-in fade-in duration-200">
+      
+      {/* Left side: Barcode input + products lists */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Select Products</h2>
-          <div className="relative w-72">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between bg-card border border-border rounded-2xl p-4">
+          <div className="relative flex-1">
+            <Barcode className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-primary animate-pulse" />
             <Input
-              value={posSearch}
-              onChange={(e) => setPosSearch(e.target.value)}
-              placeholder="Search products..."
-              className="pl-9 bg-card"
+              ref={scanInputRef}
+              value={scanValue}
+              onChange={(e) => setScanValue(e.target.value)}
+              onKeyDown={handleScanInputKeyDown}
+              placeholder="Barcode Scanner Active (Scan items or type barcode)..."
+              className="pl-11 bg-background/50 font-mono text-sm tracking-wider"
+              disabled={busy || payingPineLabs}
             />
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const b = prompt("Enter barcode to restock:");
+                if (b) {
+                  const match = rows.find(r => r.barcode === b);
+                  if (match) {
+                    setRestockProduct(match);
+                  } else {
+                    toast.error("Barcode not registered");
+                  }
+                }
+              }}
+              className="text-xs"
+            >
+              Restock Item
+            </Button>
           </div>
         </div>
 
-        {filteredItems.length === 0 ? (
-          <div className="rounded-2xl border border-border bg-card p-12 text-center text-sm text-muted-foreground">
-            No sellable products found.
-          </div>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {filteredItems.map((item) => {
-              const CatIcon = getCategoryIcon(item.category);
-              const cartItem = cart.find((i) => i.item.id === item.id);
-              const remainingStock = item.quantity - (cartItem?.quantity ?? 0);
+        {/* Scan Results / Quick products grid */}
+        <div className="rounded-2xl border border-border bg-card p-6">
+          <h3 className="text-sm font-semibold mb-4 text-muted-foreground uppercase tracking-wider">Top Quick Retail items</h3>
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-3">
+            {rows
+              .filter(r => r.sale_price_cents && r.sale_price_cents > 0 && r.active)
+              .slice(0, 6)
+              .map((item) => {
+                const CatIcon = getCategoryIcon(item.category);
+                const cartItem = cart.find(c => c.item.id === item.id);
+                const stock = item.quantity - (cartItem?.quantity ?? 0);
 
-              return (
-                <div
-                  key={item.id}
-                  className="group relative flex flex-col justify-between rounded-2xl border border-border bg-card p-4 hover:border-primary/40 transition-all"
-                >
-                  <div>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="grid h-8 w-8 place-items-center rounded-lg bg-muted text-muted-foreground">
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => stock > 0 && addToCart(item)}
+                    className={`flex flex-col justify-between rounded-xl border border-border/80 bg-background/30 p-3 hover:border-primary/50 transition cursor-pointer select-none ${stock <= 0 ? "opacity-50 pointer-events-none" : ""}`}
+                  >
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="rounded-lg bg-muted p-1 text-muted-foreground">
                         <CatIcon className="h-4 w-4" />
                       </div>
-                      <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground uppercase">
-                        {item.category}
+                      <span className={`text-[9px] font-bold uppercase rounded px-1 ${item.quantity <= item.min_stock_level ? "bg-warning/20 text-warning" : "bg-success/20 text-success"}`}>
+                        {stock} left
                       </span>
                     </div>
-
                     <div className="mt-3">
-                      <h4 className="font-semibold text-foreground truncate">{item.name}</h4>
-                      <p className="text-xs text-muted-foreground mt-0.5">{item.supplier ?? "No supplier"}</p>
+                      <p className="font-semibold text-xs text-foreground truncate">{item.name}</p>
+                      <p className="text-xs font-bold text-primary mt-1">{money(item.sale_price_cents ?? 0)}</p>
                     </div>
                   </div>
-
-                  <div className="mt-4 flex items-center justify-between gap-2 pt-3 border-t border-border/40">
-                    <div>
-                      <div className="text-sm font-bold text-foreground">{money(item.sale_price_cents ?? 0)}</div>
-                      <div className="text-[10px] text-muted-foreground">
-                        {remainingStock > 0 ? `${remainingStock} in stock` : "Max added"}
-                      </div>
-                    </div>
-
-                    <Button
-                      size="sm"
-                      onClick={() => addToCart(item)}
-                      disabled={remainingStock <= 0}
-                      className="h-8 px-3 gradient-primary text-primary-foreground shadow-sm"
-                    >
-                      <Plus className="mr-1 h-3.5 w-3.5" /> Add
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
           </div>
-        )}
+        </div>
       </div>
 
-      <div className="rounded-2xl border border-border bg-card p-5 flex flex-col justify-between min-h-[500px]">
+      {/* Right side: Cart list & calculator */}
+      <div className="rounded-2xl border border-border bg-card p-5 flex flex-col justify-between min-h-[520px] shadow-sm">
+        
+        {/* Cart Listing */}
         <div className="space-y-4 flex-1 flex flex-col">
           <div className="flex items-center gap-2 border-b border-border/60 pb-3">
             <ShoppingCart className="h-5 w-5 text-primary" />
-            <h3 className="text-base font-semibold">Shopping Cart</h3>
-            <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
-              {cart.reduce((sum, c) => sum + c.quantity, 0)} items
+            <h3 className="text-base font-semibold">Retail Cart</h3>
+            <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary font-mono">
+              {cart.reduce((sum, c) => sum + c.quantity, 0)} qty
             </span>
           </div>
 
           {cart.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-muted-foreground">
-              <ShoppingCart className="h-10 w-10 text-muted-foreground/30 mb-2" />
-              <p className="text-sm font-medium">Cart is empty</p>
-              <p className="text-xs mt-0.5">Click "Add" on any product to build a sale.</p>
+              <Barcode className="h-12 w-12 text-muted-foreground/30 mb-2 stroke-[1.5]" />
+              <p className="text-sm font-semibold">POS Terminal Ready</p>
+              <p className="text-[11px] mt-1 text-muted-foreground/80 max-w-[200px]">Scan barcodes on packaging to add items automatically.</p>
             </div>
           ) : (
-            <div className="flex-1 overflow-y-auto max-h-[300px] divide-y divide-border/60 pr-1 scrollbar-thin">
+            <div className="flex-1 overflow-y-auto max-h-[220px] divide-y divide-border/60 pr-1 scrollbar-thin">
               {cart.map((c) => (
-                <div key={c.item.id} className="py-3 flex items-center justify-between gap-3 text-xs">
+                <div key={c.item.id} className="py-2.5 flex items-center justify-between gap-3 text-xs">
                   <div className="min-w-0 flex-1">
-                    <div className="font-semibold text-foreground truncate">{c.item.name}</div>
-                    <div className="text-muted-foreground mt-0.5">{money(c.item.sale_price_cents ?? 0)} each</div>
+                    <p className="font-semibold text-foreground truncate">{c.item.name}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5 font-mono">
+                      {money(c.item.sale_price_cents ?? 0)} + {c.item.gst_percentage}% GST
+                    </p>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       onClick={() => updateQty(c.item.id, c.quantity - 1, c.item.quantity)}
-                      className="h-6 w-6 rounded border border-border hover:bg-muted text-foreground flex items-center justify-center font-bold"
+                      className="h-5 w-5 rounded border border-border bg-background hover:bg-muted text-foreground flex items-center justify-center font-bold text-xs"
                     >
                       -
                     </button>
-                    <span className="w-5 text-center font-semibold">{c.quantity}</span>
+                    <span className="w-4 text-center font-semibold font-mono text-xs">{c.quantity}</span>
                     <button
                       onClick={() => updateQty(c.item.id, c.quantity + 1, c.item.quantity)}
-                      className="h-6 w-6 rounded border border-border hover:bg-muted text-foreground flex items-center justify-center font-bold"
+                      className="h-5 w-5 rounded border border-border bg-background hover:bg-muted text-foreground flex items-center justify-center font-bold text-xs"
                     >
                       +
                     </button>
                     <button
                       onClick={() => removeFromCart(c.item.id)}
-                      className="ml-1 h-6 w-6 text-muted-foreground hover:text-destructive flex items-center justify-center"
+                      className="ml-1 h-5 w-5 text-muted-foreground hover:text-destructive flex items-center justify-center"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -1730,148 +2002,433 @@ function POSCartView({ rows, cart, setCart, onClose, userId }: POSCartViewProps)
           )}
         </div>
 
-        <div className="space-y-4 border-t border-border pt-4 mt-4">
-          {cart.length > 0 && (
-            <>
-              <div className="relative">
-                <Label htmlFor="buyer-email" className="mb-2 block text-xs uppercase font-medium text-muted-foreground">
-                  Customer Email <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="buyer-email"
-                  type="email"
-                  value={buyerEmail}
-                  onChange={(e) => {
-                    setBuyerEmail(e.target.value);
-                    setShowEmailSuggestions(true);
-                  }}
-                  onFocus={() => setShowEmailSuggestions(true)}
-                  onBlur={() => setTimeout(() => setShowEmailSuggestions(false), 200)}
-                  placeholder="Enter or search customer email..."
-                  disabled={busy}
-                  className="bg-card h-9 text-xs"
-                  required
-                />
-                {showEmailSuggestions && buyerEmail.length >= 3 && (
-                  (() => {
-                    const filteredProfiles = allProfiles.filter(p => p.email.toLowerCase().includes(buyerEmail.toLowerCase()));
-                    if (filteredProfiles.length === 0) return null;
-                    return (
-                      <ul className="absolute left-0 right-0 z-50 mt-1 max-h-40 overflow-y-auto rounded-lg border border-border bg-card shadow-lg divide-y divide-border/60">
-                        {filteredProfiles.map((p) => (
-                          <li
-                            key={p.email}
-                            onMouseDown={() => {
-                              setBuyerEmail(p.email);
-                              setShowEmailSuggestions(false);
-                            }}
-                            className="px-3 py-1.5 text-xs hover:bg-muted cursor-pointer transition flex flex-col gap-0.5"
-                          >
-                            <span className="font-semibold text-foreground">{p.email}</span>
-                            {p.full_name && <span className="text-[10px] text-muted-foreground">{p.full_name}</span>}
-                          </li>
-                        ))}
-                      </ul>
-                    );
-                  })()
-                )}
-              </div>
+        {/* Totals & checkout controls */}
+        {cart.length > 0 && (
+          <div className="space-y-3 border-t border-border pt-4 mt-4">
+            
+            {/* Buyer email autofill suggestions */}
+            <div className="relative">
+              <Label className="mb-1 block text-[10px] uppercase font-bold text-muted-foreground">
+                Customer Email *
+              </Label>
+              <Input
+                type="email"
+                value={buyerEmail}
+                onChange={(e) => {
+                  setBuyerEmail(e.target.value);
+                  setShowEmailSuggestions(true);
+                }}
+                onFocus={() => setShowEmailSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowEmailSuggestions(false), 250)}
+                placeholder="search member email..."
+                className="bg-card h-8 text-xs font-medium"
+                disabled={busy}
+              />
+              {showEmailSuggestions && buyerEmail.length >= 3 && (
+                (() => {
+                  const filtered = allProfiles.filter(p => p.email.toLowerCase().includes(buyerEmail.toLowerCase()));
+                  if (filtered.length === 0) return null;
+                  return (
+                    <ul className="absolute left-0 right-0 z-50 mt-1 max-h-36 overflow-y-auto rounded-lg border border-border bg-card shadow-lg divide-y divide-border/60">
+                      {filtered.map(p => (
+                        <li
+                          key={p.email}
+                          onMouseDown={() => {
+                            setBuyerEmail(p.email);
+                            setShowEmailSuggestions(false);
+                          }}
+                          className="px-3 py-1.5 text-xs hover:bg-muted cursor-pointer transition flex flex-col"
+                        >
+                          <span className="font-semibold text-foreground">{p.email}</span>
+                          {p.full_name && <span className="text-[10px] text-muted-foreground">{p.full_name}</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  );
+                })()
+              )}
+            </div>
 
-              <div>
-                <Label className="mb-2 block text-xs uppercase font-medium text-muted-foreground">Coupon Code (Optional)</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={couponCode}
-                    onChange={(e) => setCouponCode(e.target.value)}
-                    placeholder="e.g. WELCOME10"
-                    disabled={busy || checkingCoupon}
-                    className="bg-card uppercase font-mono h-9 text-xs"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={applyCoupon}
-                    disabled={busy || checkingCoupon || !couponCode}
-                    className="shrink-0 h-9 text-xs"
-                  >
-                    {checkingCoupon ? "Applying..." : "Apply"}
-                  </Button>
-                </div>
-                {appliedCoupon && (
-                  <p className="mt-1 text-xs text-emerald-400 font-medium">
-                    Coupon applied! {appliedCoupon.percent}% off (max Rs {appliedCoupon.upto / 100})
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <Label className="mb-2 block text-xs uppercase font-medium text-muted-foreground">Payment Method</Label>
-                <div className="grid grid-cols-2 gap-2 bg-muted/30 p-1 rounded-xl border border-border">
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod("cash")}
-                    disabled={busy}
-                    className={`py-2 px-3 rounded-lg text-xs font-semibold transition-all border ${
-                      paymentMethod === "cash"
-                        ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30 shadow-sm"
-                        : "bg-transparent text-muted-foreground border-transparent hover:text-foreground hover:bg-muted/50"
-                    }`}
-                  >
-                    Cash
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod("upi")}
-                    disabled={busy}
-                    className={`py-2 px-3 rounded-lg text-xs font-semibold transition-all border ${
-                      paymentMethod === "upi"
-                        ? "bg-indigo-500/20 text-indigo-400 border-indigo-500/30 shadow-sm"
-                        : "bg-transparent text-muted-foreground border-transparent hover:text-foreground hover:bg-muted/50"
-                    }`}
-                  >
-                    UPI
-                  </button>
-                </div>
-              </div>
-
-              <div className="rounded-xl bg-muted/30 border border-border p-3 space-y-1 text-xs text-muted-foreground">
-                <div className="flex justify-between">
-                  <span>Subtotal:</span>
-                  <span>{money(totalCents)}</span>
-                </div>
-                {discountCents > 0 && (
-                  <div className="flex justify-between text-emerald-400 font-medium">
-                    <span>Discount:</span>
-                    <span>- {money(discountCents)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between border-t border-border/40 pt-1.5 font-bold text-foreground text-sm">
-                  <span>Total Charge:</span>
-                  <span className="text-primary">{money(finalTotalCents)}</span>
-                </div>
-              </div>
-
+            {/* Coupon Code input */}
+            <div className="flex gap-1.5">
+              <Input
+                value={couponCode}
+                onChange={(e) => setCouponCode(e.target.value)}
+                placeholder="coupon (optional)"
+                className="bg-card uppercase font-mono h-8 text-xs"
+                disabled={busy}
+              />
               <Button
-                onClick={handleCheckout}
-                disabled={busy || cart.length === 0 || !buyerEmail.trim()}
-                className="w-full gradient-primary text-primary-foreground font-semibold shadow-glow"
+                variant="outline"
+                onClick={applyCoupon}
+                disabled={busy || !couponCode}
+                className="h-8 text-xs px-3"
               >
-                {busy ? "Processing transaction..." : "Complete Sale"}
+                Apply
               </Button>
-            </>
-          )}
+            </div>
 
-          <Button
-            variant="outline"
-            onClick={onClose}
-            disabled={busy}
-            className="w-full border-dashed border-border hover:bg-accent hover:text-accent-foreground"
-          >
-            Cancel
-          </Button>
+            {/* Payment Method selector buttons */}
+            <div>
+              <Label className="mb-1 block text-[10px] uppercase font-bold text-muted-foreground">Payment Method</Label>
+              <div className="grid grid-cols-4 gap-1 bg-muted/30 p-0.5 rounded-lg border border-border">
+                {(["cash", "card", "upi", "emi"] as const).map(method => (
+                  <button
+                    key={method}
+                    type="button"
+                    onClick={() => setPaymentMethod(method)}
+                    className={`py-1.5 px-1 rounded text-[10px] font-bold uppercase transition border ${
+                      paymentMethod === method
+                        ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                        : "bg-transparent text-muted-foreground border-transparent hover:text-foreground hover:bg-muted/40"
+                    }`}
+                  >
+                    {method}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Price Calculations break down */}
+            <div className="rounded-lg bg-muted/40 border border-border p-2.5 space-y-1 text-xs text-muted-foreground font-medium">
+              <div className="flex justify-between">
+                <span>Subtotal:</span>
+                <span>{money(subtotalCents)}</span>
+              </div>
+              <div className="flex justify-between text-[10px]">
+                <span>CGST (half):</span>
+                <span>{money(cgstCents)}</span>
+              </div>
+              <div className="flex justify-between text-[10px]">
+                <span>SGST (half):</span>
+                <span>{money(sgstCents)}</span>
+              </div>
+              <div className="flex justify-between text-[11px] font-semibold text-foreground">
+                <span>Total GST:</span>
+                <span>{money(totalGstCents)}</span>
+              </div>
+              {discountCents > 0 && (
+                <div className="flex justify-between text-emerald-400 font-semibold">
+                  <span>Discount:</span>
+                  <span>- {money(discountCents)}</span>
+                </div>
+              )}
+              <div className="flex justify-between border-t border-border/40 pt-1.5 font-bold text-foreground text-sm">
+                <span>Grand Total:</span>
+                <span className="text-emerald-400">{money(grandTotalCents)}</span>
+              </div>
+            </div>
+
+            <Button
+              onClick={handleCheckout}
+              disabled={busy || cart.length === 0 || !buyerEmail.trim()}
+              className="w-full h-10 gradient-primary text-primary-foreground font-semibold shadow-glow"
+            >
+              {payingPineLabs ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="animate-spin text-sm">🔄</span> Swiping Pine Labs POS...
+                </span>
+              ) : busy ? (
+                "Saving Checkout..."
+              ) : (
+                "Checkout & Print Receipt"
+              )}
+            </Button>
+          </div>
+        )}
+
+        <Button
+          variant="ghost"
+          onClick={onClose}
+          disabled={busy || payingPineLabs}
+          className="w-full text-xs text-muted-foreground hover:text-foreground mt-2"
+        >
+          Close Terminal
+        </Button>
+      </div>
+
+      {/* Hidden printable 80mm thermal receipt */}
+      <div style={{ display: "none" }}>
+        <div id="thermal-receipt" className="p-4 bg-white text-black font-mono text-xs w-[80mm] leading-tight print:block">
+          <div className="text-center space-y-1">
+            <h2 className="text-sm font-bold">TANK BY TAPAN</h2>
+            <p className="text-[10px]">Strength & Conditioning Club</p>
+            <p className="text-[9px]">Civil Lines, Aligarh, UP</p>
+            <p className="text-[9px]">GSTIN: 09AAACT7429M1Z9</p>
+            <p className="border-b border-dashed border-black my-2"></p>
+          </div>
+          <div className="space-y-0.5 text-[10px]">
+            <p><strong>Invoice:</strong> {checkoutResult?.invoice_number || "INV-POS-TEMP"}</p>
+            <p><strong>Date:</strong> {new Date().toLocaleString()}</p>
+            <p><strong>Cashier:</strong> Staff</p>
+            <p><strong>Buyer:</strong> {buyerEmail}</p>
+            <p className="border-b border-dashed border-black my-2"></p>
+          </div>
+          <table className="w-full text-[10px] text-left">
+            <thead>
+              <tr className="border-b border-dashed border-black">
+                <th className="pb-1">Item</th>
+                <th className="pb-1 text-center">Qty</th>
+                <th className="pb-1 text-right">Price</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cart.map(c => (
+                <tr key={c.item.id}>
+                  <td className="py-1 max-w-[40mm] truncate">{c.item.name}</td>
+                  <td className="py-1 text-center">{c.quantity}</td>
+                  <td className="py-1 text-right">{( (c.item.sale_price_cents ?? 0) * c.quantity / 100 ).toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="border-t border-dashed border-black pt-2 mt-2 space-y-1 text-[10px] text-right">
+            <p>Subtotal: Rs {(subtotalCents / 100).toFixed(2)}</p>
+            <p>CGST (half): Rs {(cgstCents / 100).toFixed(2)}</p>
+            <p>SGST (half): Rs {(sgstCents / 100).toFixed(2)}</p>
+            <p>Total GST: Rs {(totalGstCents / 100).toFixed(2)}</p>
+            {discountCents > 0 && <p className="text-black">Discount: - Rs {(discountCents / 100).toFixed(2)}</p>}
+            <p className="text-xs font-bold border-t border-dashed border-black pt-1">
+              Grand Total: Rs {(grandTotalCents / 100).toFixed(2)}
+            </p>
+          </div>
+          <div className="text-center mt-4 space-y-1 text-[9px]">
+            <p>Paid via: <span className="uppercase font-bold">{paymentMethod}</span></p>
+            <p>Thank you for shopping at TANK! 💪</p>
+            <p>Keep training heavy!</p>
+          </div>
         </div>
       </div>
+
+      {/* Restock dialog popup */}
+      {restockProduct && (
+        <Dialog open={!!restockProduct} onOpenChange={(o) => !o && setRestockProduct(null)}>
+          <DialogContent className="max-w-xs">
+            <DialogHeader>
+              <DialogTitle>Restock product</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleRestockSubmit} className="space-y-4 pt-2">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-foreground">{restockProduct.name}</p>
+                <p className="text-xs text-muted-foreground">Current Stock: <strong className="text-foreground">{restockProduct.quantity} units</strong></p>
+              </div>
+              <div>
+                <Label>Quantity to Add</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={restockQty}
+                  onChange={(e) => setRestockQty(e.target.value)}
+                  required
+                />
+              </div>
+              <DialogFooter className="gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => setRestockProduct(null)} disabled={busy}>Cancel</Button>
+                <Button type="submit" size="sm" disabled={busy} className="gradient-primary text-primary-foreground font-semibold">
+                  {busy ? "Updating..." : "Restock"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Add Product Modal (prefilled barcode) */}
+      {addProductOpen && (
+        <Dialog open={addProductOpen} onOpenChange={setAddProductOpen}>
+          <DialogContent className="max-w-md bg-card border border-border">
+            <DialogHeader>
+              <DialogTitle>Register New Product</DialogTitle>
+            </DialogHeader>
+            <div className="py-2">
+              <p className="text-xs text-muted-foreground bg-primary/10 border border-primary/20 p-2.5 rounded-lg mb-4">
+                You scanned a new barcode: <strong className="font-mono text-foreground">{prefilledBarcode}</strong>. Please enter the product information to register it in the inventory.
+              </p>
+              <AddItemDialogPrefilled
+                barcode={prefilledBarcode}
+                isAdmin={true}
+                onClose={() => {
+                  setAddProductOpen(false);
+                  setPrefilledBarcode("");
+                  onClose(); // Reload inventory
+                }}
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
     </div>
+  );
+}
+
+// Prefilled barcode add dialog
+function AddItemDialogPrefilled({ barcode, isAdmin, onClose }: { barcode: string; isAdmin: boolean; onClose: () => void }) {
+  const [name, setName] = useState("");
+  const [quantity, setQuantity] = useState("10");
+  const [minStock, setMinStock] = useState("5");
+  const [purchasePrice, setPurchasePrice] = useState("");
+  const [salePrice, setSalePrice] = useState("");
+  const [category, setCategory] = useState<string>("Supplements");
+  const [supplier, setSupplier] = useState("");
+  const [description, setDescription] = useState("");
+  const [sku, setSku] = useState("");
+  const [gstPercentage, setGstPercentage] = useState("18");
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+
+    try {
+      await insertInventoryItem({
+        name: name.trim(),
+        quantity: parseInt(quantity) || 0,
+        min_stock_level: parseInt(minStock) || 5,
+        purchase_price_cents: Math.round(parseFloat(purchasePrice) * 100) || 0,
+        sale_price_cents: salePrice ? Math.round(parseFloat(salePrice) * 100) : null,
+        category,
+        supplier: supplier.trim() || null,
+        description: description.trim() || null,
+        photo_url: null,
+        barcode: barcode,
+        sku: sku.trim() || null,
+        gst_percentage: parseInt(gstPercentage) || 0,
+        active: true,
+      });
+
+      toast.success("Inventory item registered successfully");
+      onClose();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to register item");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-4 pt-1">
+      <div>
+        <Label>Product Name *</Label>
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. Monster Energy Drink 350ml"
+          required
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label>Barcode (Scanned)</Label>
+          <Input value={barcode} disabled className="bg-muted font-mono" />
+        </div>
+        <div>
+          <Label>SKU (Optional)</Label>
+          <Input
+            value={sku}
+            onChange={(e) => setSku(e.target.value)}
+            placeholder="e.g. MONSTER-350"
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label>Initial Quantity *</Label>
+          <Input
+            type="number"
+            min="0"
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
+            required
+          />
+        </div>
+        <div>
+          <Label>Min Stock Level *</Label>
+          <Input
+            type="number"
+            min="0"
+            value={minStock}
+            onChange={(e) => setMinStock(e.target.value)}
+            required
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label>Purchase Price (Rs) *</Label>
+          <Input
+            type="number"
+            min="0.00"
+            step="0.01"
+            value={purchasePrice}
+            onChange={(e) => setPurchasePrice(e.target.value)}
+            placeholder="0.00"
+            required
+          />
+        </div>
+        <div>
+          <Label>Sale Price (Rs) *</Label>
+          <Input
+            type="number"
+            min="0.00"
+            step="0.01"
+            value={salePrice}
+            onChange={(e) => setSalePrice(e.target.value)}
+            placeholder="0.00"
+            required
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-3">
+        <div className="col-span-2">
+          <Label>Category</Label>
+          <Select value={category} onValueChange={setCategory}>
+            <SelectTrigger>
+              <SelectValue placeholder="Category" />
+            </SelectTrigger>
+            <SelectContent>
+              {CATEGORIES.map((c) => (
+                <SelectItem key={c} value={c}>{c}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label>GST %</Label>
+          <Input
+            type="number"
+            min="0"
+            max="100"
+            value={gstPercentage}
+            onChange={(e) => setGstPercentage(e.target.value)}
+            required
+          />
+        </div>
+      </div>
+      <div>
+        <Label>Supplier</Label>
+        <Input
+          value={supplier}
+          onChange={(e) => setSupplier(e.target.value)}
+          placeholder="e.g. Coca-Cola Distributors"
+        />
+      </div>
+      <div>
+        <Label>Description</Label>
+        <Textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Product specs or notes..."
+          rows={2}
+        />
+      </div>
+      <DialogFooter className="pt-2 gap-2">
+        <Button type="button" variant="outline" onClick={onClose} disabled={busy}>Cancel</Button>
+        <Button type="submit" disabled={busy} className="gradient-primary text-primary-foreground font-semibold">
+          {busy ? "Registering..." : "Register Product"}
+        </Button>
+      </DialogFooter>
+    </form>
   );
 }
 
@@ -1903,5 +2460,216 @@ function DeleteSaleConfirm({ sale, onClose, onConfirm }: { sale: SaleRecord; onC
         </Button>
       </DialogFooter>
     </DialogContent>
+  );
+}
+
+function POSAnalyticsView({ isAdmin }: { isAdmin: boolean }) {
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<any>(null);
+  
+  const [reportType, setReportType] = useState<"sales" | "gst" | "profit" | "inventory">("sales");
+  const [reportStart, setReportStart] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().slice(0, 10);
+  });
+  const [reportEnd, setReportEnd] = useState(() => new Date().toISOString().slice(0, 10));
+  const [downloading, setDownloading] = useState(false);
+
+  useEffect(() => {
+    posGetBillingStats()
+      .then((data) => {
+        setStats(data);
+      })
+      .catch((err) => {
+        toast.error(err.message || "Failed to load billing stats");
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, []);
+
+  const handleDownloadReport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setDownloading(true);
+    try {
+      const base64 = await posGenerateReportPDF({
+        data: {
+          reportType,
+          dateRange: { from: reportStart, to: reportEnd }
+        }
+      });
+      
+      const link = document.createElement("a");
+      link.href = `data:application/pdf;base64,${base64}`;
+      link.download = `POS_Report_${reportType}_${reportStart}_to_${reportEnd}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success("PDF report generated successfully!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to generate report PDF");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex h-60 items-center justify-center">
+        <div className="flex flex-col items-center gap-2">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          <span className="text-xs text-muted-foreground">Analyzing transactions & stock logs...</span>
+        </div>
+      </div>
+    );
+  }
+
+  const adminStats = stats?.adminStats;
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-200">
+      
+      {/* Metrics Row */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="rounded-2xl border border-border bg-card p-4 space-y-1 shadow-sm">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Today's Sales</div>
+          <div className="text-xl font-bold text-emerald-400 font-mono">
+            {money(stats?.todayRevenue ?? 0)}
+          </div>
+          <p className="text-[10px] text-muted-foreground">{stats?.todaySalesCount ?? 0} transactions</p>
+        </div>
+
+        <div className="rounded-2xl border border-border bg-card p-4 space-y-1 shadow-sm">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Units Sold Today</div>
+          <div className="text-xl font-bold text-primary font-mono">
+            {stats?.todayProductsCount ?? 0} units
+          </div>
+          <p className="text-[10px] text-muted-foreground">supplement/retail stock</p>
+        </div>
+
+        {isAdmin && adminStats && (
+          <>
+            <div className="rounded-2xl border border-border bg-card p-4 space-y-1 shadow-sm">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Today's Net Profit</div>
+              <div className="text-xl font-bold text-indigo-400 font-mono">
+                {money(adminStats.todayProfit)}
+              </div>
+              <p className="text-[10px] text-muted-foreground">after cost of goods sold</p>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-card p-4 space-y-1 shadow-sm">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">This Month Profit</div>
+              <div className="text-xl font-bold text-primary font-mono">
+                {money(adminStats.thisMonthProfit)}
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Last month: {money(adminStats.prevMonthProfit)}
+              </p>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-[1fr_320px]">
+        {/* Charts panel */}
+        <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
+          <div className="flex items-center gap-2 pb-2 border-b border-border/40">
+            <ReceiptText className="h-5 w-5 text-primary" />
+            <h3 className="font-semibold text-sm">Monthly Revenue vs Net Profit</h3>
+          </div>
+          
+          {isAdmin && adminStats?.monthlyProfitData ? (
+            <div className="h-64 w-full">
+              <RechartsResponsiveContainer width="100%" height="100%">
+                <RechartsBarChart data={adminStats.monthlyProfitData}>
+                  <RechartsCartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                  <RechartsXAxis dataKey="month" stroke="#9ca3af" fontSize={10} />
+                  <RechartsYAxis stroke="#9ca3af" fontSize={10} />
+                  <RechartsTooltip 
+                    contentStyle={{ backgroundColor: "#0b1020", borderColor: "#1f2937" }}
+                    labelStyle={{ color: "#ffffff", fontWeight: "bold" }}
+                  />
+                  <RechartsBar dataKey="revenue" name="Revenue (Rs)" fill="#10b981" radius={[4, 4, 0, 0]} />
+                  <RechartsBar dataKey="profit" name="Net Profit (Rs)" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                </RechartsBarChart>
+              </RechartsResponsiveContainer>
+            </div>
+          ) : (
+            <div className="flex h-56 items-center justify-center text-xs text-muted-foreground">
+              Sales charts are only available for authorized administrators.
+            </div>
+          )}
+        </div>
+
+        {/* Report generator sidebar panel */}
+        <div className="rounded-2xl border border-border bg-card p-5 space-y-4 shadow-sm">
+          <div className="flex items-center gap-2 pb-2 border-b border-border/40">
+            <CalendarRange className="h-5 w-5 text-primary" />
+            <h3 className="font-semibold text-sm">Export PDF Reports</h3>
+          </div>
+
+          <form onSubmit={handleDownloadReport} className="space-y-3">
+            <div>
+              <Label className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">Report Type</Label>
+              <Select value={reportType} onValueChange={(val: any) => setReportType(val)}>
+                <SelectTrigger className="h-9 text-xs bg-muted/40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="sales">Sales & Revenue</SelectItem>
+                  <SelectItem value="gst">GST Tax Report</SelectItem>
+                  {isAdmin && <SelectItem value="profit">Profit/Margin Analysis</SelectItem>}
+                  <SelectItem value="inventory">Inventory Evaluation</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {reportType !== "inventory" && (
+              <>
+                <div>
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">From Date</Label>
+                  <Input
+                    type="date"
+                    value={reportStart}
+                    onChange={(e) => setReportStart(e.target.value)}
+                    className="h-9 text-xs bg-muted/40"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">To Date</Label>
+                  <Input
+                    type="date"
+                    value={reportEnd}
+                    onChange={(e) => setReportEnd(e.target.value)}
+                    className="h-9 text-xs bg-muted/40"
+                    required
+                  />
+                </div>
+              </>
+            )}
+
+            <Button
+              type="submit"
+              disabled={downloading}
+              className="w-full h-9 gradient-primary text-primary-foreground font-semibold mt-2 text-xs"
+            >
+              {downloading ? (
+                <span className="flex items-center gap-1.5 justify-center">
+                  <span className="animate-spin text-xs">🔄</span> Generating PDF...
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5 justify-center">
+                  <Download className="h-3.5 w-3.5" /> Download Report
+                </span>
+              )}
+            </Button>
+          </form>
+        </div>
+      </div>
+
+    </div>
   );
 }

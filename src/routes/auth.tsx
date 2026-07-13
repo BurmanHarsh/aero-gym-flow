@@ -27,6 +27,7 @@ function AuthPage() {
   const [signupDone, setSignupDone] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileKey, setTurnstileKey] = useState(0);
+  const isLocalhost = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
 
   // Redirect to dashboard if already logged in
   useEffect(() => {
@@ -65,7 +66,8 @@ function AuthPage() {
   async function handleEmailSignIn(e: React.FormEvent) {
     e.preventDefault();
     if (!email.trim() || !password) return;
-    if (!turnstileToken) {
+    const isLocalhost = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+    if (!isLocalhost && !turnstileToken) {
       toast.error("Please complete the security check.");
       return;
     }
@@ -73,7 +75,7 @@ function AuthPage() {
     const { error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
-      options: { captchaToken: turnstileToken }
+      options: (isLocalhost && !turnstileToken) ? {} : { captchaToken: turnstileToken || undefined }
     });
     if (error) {
       toast.error(error.message ?? "Sign in failed");
@@ -95,7 +97,8 @@ function AuthPage() {
       toast.error("Password must be at least 6 characters");
       return;
     }
-    if (!turnstileToken) {
+    const isLocalhost = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+    if (!isLocalhost && !turnstileToken) {
       toast.error("Please complete the security check.");
       return;
     }
@@ -105,7 +108,7 @@ function AuthPage() {
       password,
       options: {
         emailRedirectTo: window.location.origin + "/auth",
-        captchaToken: turnstileToken,
+        ...((isLocalhost && !turnstileToken) ? {} : { captchaToken: turnstileToken || undefined }),
       },
     });
     if (error) {
@@ -124,14 +127,15 @@ function AuthPage() {
       toast.error("Enter your email address first, then click Forgot Password");
       return;
     }
-    if (!turnstileToken) {
+    const isLocalhost = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+    if (!isLocalhost && !turnstileToken) {
       toast.error("Please complete the security check first.");
       return;
     }
     setLoading(true);
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
       redirectTo: window.location.origin + "/auth",
-      captchaToken: turnstileToken,
+      ...((isLocalhost && !turnstileToken) ? {} : { captchaToken: turnstileToken || undefined }),
     });
     if (error) {
       toast.error(error.message ?? "Failed to send reset email");
