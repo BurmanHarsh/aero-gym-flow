@@ -518,3 +518,53 @@ export const sendMemberEditEmail = createServerFn({ method: "POST" })
       shell("Profile Updated", body)
     );
   });
+
+export const sendMemberSupportEmail = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: {
+    subject: string;
+    message: string;
+  }) =>
+    z.object({
+      subject: z.string().min(1, "Subject is required"),
+      message: z.string().min(10, "Message must be at least 10 characters"),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as any;
+    const userId = context.userId;
+
+    const { data: profile, error } = await supabase
+      .from("profiles")
+      .select("full_name, email")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to retrieve profile: ${error.message}`);
+    }
+
+    const userName = profile?.full_name || "Gym Member";
+    const userEmail = profile?.email || "Unknown Email";
+
+    const from = "Tank by Tapan <support@tankbytapan.in>";
+    const to = "tankyado@gmail.com"; // Admin's email
+
+    const body = `
+      <p>You have received a new support/contact request from a registered gym member.</p>
+      <div style="background:#1f2747; padding:16px; border-radius:8px; margin:16px 0; border:1px solid #2e3860;">
+        <p style="margin: 4px 0; color:#e6e9f2;"><strong>Member Name:</strong> ${userName}</p>
+        <p style="margin: 4px 0; color:#e6e9f2;"><strong>Member Email:</strong> ${userEmail}</p>
+        <p style="margin: 4px 0; color:#e6e9f2;"><strong>Subject:</strong> ${data.subject}</p>
+        <p style="margin: 12px 0 4px; color:#a855f7; font-weight:bold;">Message:</p>
+        <p style="margin: 0; white-space: pre-wrap; font-style: italic; color:#c9cfe0;">"${data.message}"</p>
+      </div>
+    `;
+
+    return send(
+      from,
+      to,
+      `Member Support: ${data.subject}`,
+      shell(`Support Request: ${data.subject}`, body)
+    );
+  });

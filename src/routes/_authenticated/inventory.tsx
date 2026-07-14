@@ -2148,55 +2148,53 @@ function POSCartView({ rows, cart, setCart, onClose, userId }: POSCartViewProps)
       </div>
 
       {/* Hidden printable 80mm thermal receipt */}
-      <div style={{ display: "none" }}>
-        <div id="thermal-receipt" className="p-4 bg-white text-black font-mono text-xs w-[80mm] leading-tight print:block">
-          <div className="text-center space-y-1">
-            <h2 className="text-sm font-bold">TANK BY TAPAN</h2>
-            <p className="text-[10px]">Strength & Conditioning Club</p>
-            <p className="text-[9px]">Civil Lines, Aligarh, UP</p>
-            <p className="text-[9px]">GSTIN: 09AAACT7429M1Z9</p>
-            <p className="border-b border-dashed border-black my-2"></p>
-          </div>
-          <div className="space-y-0.5 text-[10px]">
-            <p><strong>Invoice:</strong> {checkoutResult?.invoice_number || "INV-POS-TEMP"}</p>
-            <p><strong>Date:</strong> {new Date().toLocaleString()}</p>
-            <p><strong>Cashier:</strong> Staff</p>
-            <p><strong>Buyer:</strong> {buyerEmail}</p>
-            <p className="border-b border-dashed border-black my-2"></p>
-          </div>
-          <table className="w-full text-[10px] text-left">
-            <thead>
-              <tr className="border-b border-dashed border-black">
-                <th className="pb-1">Item</th>
-                <th className="pb-1 text-center">Qty</th>
-                <th className="pb-1 text-right">Price</th>
+      <div id="thermal-receipt" className="p-4 bg-white text-black font-mono text-xs w-[80mm] leading-tight hidden print:block">
+        <div className="text-center space-y-1">
+          <h2 className="text-sm font-bold">TANK BY TAPAN</h2>
+          <p className="text-[10px]">Strength & Conditioning Club</p>
+          <p className="text-[9px]">Civil Lines, Aligarh, UP</p>
+          <p className="text-[9px]">GSTIN: 09AAACT7429M1Z9</p>
+          <p className="border-b border-dashed border-black my-2"></p>
+        </div>
+        <div className="space-y-0.5 text-[10px]">
+          <p><strong>Invoice:</strong> {checkoutResult?.invoice_number || "INV-POS-TEMP"}</p>
+          <p><strong>Date:</strong> {new Date().toLocaleString()}</p>
+          <p><strong>Cashier:</strong> Staff</p>
+          <p><strong>Buyer:</strong> {buyerEmail}</p>
+          <p className="border-b border-dashed border-black my-2"></p>
+        </div>
+        <table className="w-full text-[10px] text-left">
+          <thead>
+            <tr className="border-b border-dashed border-black">
+              <th className="pb-1">Item</th>
+              <th className="pb-1 text-center">Qty</th>
+              <th className="pb-1 text-right">Price</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cart.map(c => (
+              <tr key={c.item.id}>
+                <td className="py-1 max-w-[40mm] truncate">{c.item.name}</td>
+                <td className="py-1 text-center">{c.quantity}</td>
+                <td className="py-1 text-right">{( (c.item.sale_price_cents ?? 0) * c.quantity / 100 ).toFixed(2)}</td>
               </tr>
-            </thead>
-            <tbody>
-              {cart.map(c => (
-                <tr key={c.item.id}>
-                  <td className="py-1 max-w-[40mm] truncate">{c.item.name}</td>
-                  <td className="py-1 text-center">{c.quantity}</td>
-                  <td className="py-1 text-right">{( (c.item.sale_price_cents ?? 0) * c.quantity / 100 ).toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="border-t border-dashed border-black pt-2 mt-2 space-y-1 text-[10px] text-right">
-            <p>Subtotal: Rs {(subtotalCents / 100).toFixed(2)}</p>
-            <p>CGST (half): Rs {(cgstCents / 100).toFixed(2)}</p>
-            <p>SGST (half): Rs {(sgstCents / 100).toFixed(2)}</p>
-            <p>Total GST: Rs {(totalGstCents / 100).toFixed(2)}</p>
-            {discountCents > 0 && <p className="text-black">Discount: - Rs {(discountCents / 100).toFixed(2)}</p>}
-            <p className="text-xs font-bold border-t border-dashed border-black pt-1">
-              Grand Total: Rs {(grandTotalCents / 100).toFixed(2)}
-            </p>
-          </div>
-          <div className="text-center mt-4 space-y-1 text-[9px]">
-            <p>Paid via: <span className="uppercase font-bold">{paymentMethod}</span></p>
-            <p>Thank you for shopping at TANK! 💪</p>
-            <p>Keep training heavy!</p>
-          </div>
+            ))}
+          </tbody>
+        </table>
+        <div className="border-t border-dashed border-black pt-2 mt-2 space-y-1 text-[10px] text-right">
+          <p>Subtotal: Rs {(subtotalCents / 100).toFixed(2)}</p>
+          <p>CGST (half): Rs {(cgstCents / 100).toFixed(2)}</p>
+          <p>SGST (half): Rs {(sgstCents / 100).toFixed(2)}</p>
+          <p>Total GST: Rs {(totalGstCents / 100).toFixed(2)}</p>
+          {discountCents > 0 && <p className="text-black">Discount: - Rs {(discountCents / 100).toFixed(2)}</p>}
+          <p className="text-xs font-bold border-t border-dashed border-black pt-1">
+            Grand Total: Rs {(grandTotalCents / 100).toFixed(2)}
+          </p>
+        </div>
+        <div className="text-center mt-4 space-y-1 text-[9px]">
+          <p>Paid via: <span className="uppercase font-bold">{paymentMethod}</span></p>
+          <p>Thank you for shopping at TANK! 💪</p>
+          <p>Keep training heavy!</p>
         </div>
       </div>
 

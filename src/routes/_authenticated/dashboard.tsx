@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState, useEffect } from "react";
 import { getAttendanceTrend, getDashboardStats, getRevenueTrend } from "@/lib/aerogym/analytics.functions";
 import { autoExpireMemberships, sendExpiryReminders } from "@/lib/aerogym/gym.functions";
+import { sendMemberSupportEmail } from "@/lib/aerogym/email.functions";
 import { StatCard } from "@/components/stat-card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -617,6 +618,41 @@ function MemberDashboard({
   onSelectItem: (item: any) => void;
 }) {
   const [activeReceipt, setActiveReceipt] = useState<any>(null);
+  const [contactOpen, setContactOpen] = useState(false);
+  const [contactSubject, setContactSubject] = useState("");
+  const [contactMessage, setContactMessage] = useState("");
+  const [sendingContact, setSendingContact] = useState(false);
+  const sendSupportFn = useServerFn(sendMemberSupportEmail);
+
+  const handleContactSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!contactSubject.trim() || !contactMessage.trim()) {
+      toast.error("Subject and Message are required");
+      return;
+    }
+    if (contactMessage.trim().length < 10) {
+      toast.error("Message must be at least 10 characters");
+      return;
+    }
+    setSendingContact(true);
+    try {
+      await sendSupportFn({
+        data: {
+          subject: contactSubject.trim(),
+          message: contactMessage.trim(),
+        }
+      });
+      toast.success("Your message has been sent to the gym management!");
+      setContactOpen(false);
+      setContactSubject("");
+      setContactMessage("");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to send support request");
+    } finally {
+      setSendingContact(false);
+    }
+  };
+
   const memberQuery = useQuery({
     queryKey: ["member-profile", user.email],
     queryFn: async () => {
@@ -791,6 +827,69 @@ function MemberDashboard({
                 <span>Membership Plans</span>
               </Link>
             </Button>
+            <Dialog open={contactOpen} onOpenChange={setContactOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="w-full justify-start gap-2 h-9 text-xs">
+                  <Megaphone className="h-3.5 w-3.5 text-warning" />
+                  <span>Contact Us / Support</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md bg-[#111733] border-2 border-[#1f2747] text-white">
+                <DialogHeader>
+                  <DialogTitle className="text-xl font-bold tracking-tight text-[#14b8a6]">
+                    Contact Gym Management
+                  </DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleContactSubmit} className="space-y-4 pt-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="contact-subject" className="text-xs font-bold text-muted-foreground uppercase">
+                      Subject
+                    </Label>
+                    <Input
+                      id="contact-subject"
+                      value={contactSubject}
+                      onChange={(e) => setContactSubject(e.target.value)}
+                      placeholder="e.g. Membership Inquiry, General Feedback"
+                      required
+                      className="bg-background border-border text-white text-xs h-10 rounded-xl"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="contact-message" className="text-xs font-bold text-muted-foreground uppercase">
+                      Message
+                    </Label>
+                    <Textarea
+                      id="contact-message"
+                      value={contactMessage}
+                      onChange={(e) => setContactMessage(e.target.value)}
+                      placeholder="Describe your issue or inquiry in detail (min 10 characters)..."
+                      required
+                      rows={5}
+                      className="bg-background border-border text-white text-xs rounded-xl resize-none"
+                    />
+                  </div>
+                  <DialogFooter className="pt-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setContactOpen(false)}
+                      className="text-muted-foreground hover:text-white"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={sendingContact}
+                      size="sm"
+                      className="gradient-primary text-primary-foreground font-semibold shadow-glow px-5"
+                    >
+                      {sendingContact ? "Sending..." : "Send Message"}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
       </div>

@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Search, Plus, Phone, Mail, Calendar, User, Upload, Trash2, Edit2, ShieldAlert, HeartPulse, Activity, RefreshCw } from "lucide-react";
+import { Search, Plus, Phone, Mail, Calendar, User, Upload, Trash2, Edit2, ShieldAlert, HeartPulse, Activity, RefreshCw, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { sendWelcomeEmail, sendReceiptEmail, sendMemberEditEmail } from "@/lib/aerogym/email.functions";
@@ -45,6 +45,7 @@ interface Member {
   notes: string | null;
   coupon_code?: string | null;
   coupon_discount_cents?: number | null;
+  created_at?: string;
 }
 
 interface Plan {
@@ -206,6 +207,12 @@ function MembersPage() {
                       </>
                     )}
                     {m.expires_at && <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" /> exp {m.expires_at}</span>}
+                    {m.created_at && (
+                      <span className="inline-flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        added {new Date(m.created_at).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" })}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1063,6 +1070,14 @@ function MemberProfileDialog({
               <span className="text-xs uppercase text-muted-foreground">Valid Until</span>
               <p className="text-sm font-medium">{member.expires_at ?? "—"}</p>
             </div>
+            {member.created_at && (
+              <div>
+                <span className="text-xs uppercase text-muted-foreground">Registered At</span>
+                <p className="text-sm font-medium">
+                  {new Date(member.created_at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+                </p>
+              </div>
+            )}
             {member.coupon_code && (
               <div>
                 <span className="text-xs uppercase text-muted-foreground">Promo Coupon</span>
