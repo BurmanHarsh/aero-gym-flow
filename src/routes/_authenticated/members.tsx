@@ -459,6 +459,12 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
     e.preventDefault();
     setBusy(true);
 
+    if (!plan_id || plan_id === "no-plans") {
+      toast.error("Please select a membership plan first.");
+      setBusy(false);
+      return;
+    }
+
     const cleanPhone = phone.replace(/\D/g, "");
     if (cleanPhone.length !== 10) {
       toast.error("Invalid phone number. Must be exactly 10 digits.");
