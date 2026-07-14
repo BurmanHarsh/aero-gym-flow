@@ -6,13 +6,45 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Search, Plus, Phone, Mail, Calendar, User, Upload, Trash2, Edit2, ShieldAlert, HeartPulse, Activity, RefreshCw, Clock } from "lucide-react";
+import {
+  Search,
+  Plus,
+  Phone,
+  Mail,
+  Calendar,
+  User,
+  Upload,
+  Trash2,
+  Edit2,
+  ShieldAlert,
+  HeartPulse,
+  Activity,
+  RefreshCw,
+  Clock,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { sendWelcomeEmail, sendReceiptEmail, sendMemberEditEmail } from "@/lib/aerogym/email.functions";
+import {
+  sendWelcomeEmail,
+  sendReceiptEmail,
+  sendMemberEditEmail,
+} from "@/lib/aerogym/email.functions";
 import { getAuthCache } from "@/routes/_authenticated/route";
 
 export const Route = createFileRoute("/_authenticated/members")({
@@ -20,7 +52,8 @@ export const Route = createFileRoute("/_authenticated/members")({
   beforeLoad: () => {
     const cached = getAuthCache();
     if (!cached) throw redirect({ to: "/auth" });
-    const isStaff = cached.roles.includes("admin") || cached.roles.includes("front_desk");
+    const isStaff =
+      cached.roles.includes("admin") || cached.roles.includes("front_desk");
     if (!isStaff) throw redirect({ to: "/dashboard" });
   },
   component: MembersPage,
@@ -90,7 +123,11 @@ function MembersPage() {
     const to = from + PAGE_SIZE - 1;
 
     const [m, p, prof] = await Promise.all([
-      supabase.from("members").select("*").order("created_at", { ascending: false }).range(from, to),
+      supabase
+        .from("members")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .range(from, to),
       supabase.from("membership_plans").select("*").eq("active", true),
       supabase.from("profiles").select("email, avatar_url"),
     ]);
@@ -136,16 +173,29 @@ function MembersPage() {
     setLoading(false);
   }
 
-  useEffect(() => { load(true); }, []);
+  useEffect(() => {
+    load(true);
+  }, []);
 
-  const activeCount = useMemo(() => rows.filter((r) => r.status === "active").length, [rows]);
-  const inactiveCount = useMemo(() => rows.filter((r) => r.status !== "active").length, [rows]);
+  const activeCount = useMemo(
+    () => rows.filter((r) => r.status === "active").length,
+    [rows],
+  );
+  const inactiveCount = useMemo(
+    () => rows.filter((r) => r.status !== "active").length,
+    [rows],
+  );
 
   const filtered = useMemo(() => {
     const t = q.toLowerCase();
     return rows.filter((r) => {
-      const matchesSearch = !t || r.full_name.toLowerCase().includes(t) || r.phone.includes(t) || r.member_code.toLowerCase().includes(t);
-      const matchesTab = activeTab === "active" ? r.status === "active" : r.status !== "active";
+      const matchesSearch =
+        !t ||
+        r.full_name.toLowerCase().includes(t) ||
+        r.phone.includes(t) ||
+        r.member_code.toLowerCase().includes(t);
+      const matchesTab =
+        activeTab === "active" ? r.status === "active" : r.status !== "active";
       return matchesSearch && matchesTab;
     });
   }, [rows, q, activeTab]);
@@ -154,17 +204,23 @@ function MembersPage() {
 
   const renderMemberList = () => {
     if (loading) {
-      return <div className="p-10 text-center text-sm text-muted-foreground">Loading members...</div>;
+      return (
+        <div className="p-10 text-center text-sm text-muted-foreground">
+          Loading members...
+        </div>
+      );
     }
     if (filtered.length === 0) {
       return (
         <div className="p-12 text-center">
           <p className="text-sm font-medium">
-            {activeTab === "active" ? "No active members yet" : "No longer or removed members found"}
+            {activeTab === "active"
+              ? "No active members yet"
+              : "No longer or removed members found"}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {activeTab === "active" 
-              ? "Add a member or adjust your search query." 
+            {activeTab === "active"
+              ? "Add a member or adjust your search query."
               : "Removed, expired, frozen, or cancelled member profiles will appear here."}
           </p>
         </div>
@@ -186,7 +242,9 @@ function MembersPage() {
                   <img
                     src={m.photo_url}
                     alt={m.full_name}
-                    onError={() => setBrokenImages((prev) => ({ ...prev, [m.id]: true }))}
+                    onError={() =>
+                      setBrokenImages((prev) => ({ ...prev, [m.id]: true }))
+                    }
                     className="h-10 w-10 shrink-0 rounded-xl object-cover"
                   />
                 ) : (
@@ -197,20 +255,36 @@ function MembersPage() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="truncate font-medium">{m.full_name}</span>
-                    <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">{m.member_code}</span>
+                    <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+                      {m.member_code}
+                    </span>
                   </div>
                   <div className="mt-0.5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                     {isStaff && (
                       <>
-                        <span className="inline-flex items-center gap-1"><Phone className="h-3 w-3" /> {m.phone}</span>
-                        {m.email && <span className="inline-flex items-center gap-1"><Mail className="h-3 w-3" /> {m.email}</span>}
+                        <span className="inline-flex items-center gap-1">
+                          <Phone className="h-3 w-3" /> {m.phone}
+                        </span>
+                        {m.email && (
+                          <span className="inline-flex items-center gap-1">
+                            <Mail className="h-3 w-3" /> {m.email}
+                          </span>
+                        )}
                       </>
                     )}
-                    {m.expires_at && <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" /> exp {m.expires_at}</span>}
+                    {m.expires_at && (
+                      <span className="inline-flex items-center gap-1">
+                        <Calendar className="h-3 w-3" /> exp {m.expires_at}
+                      </span>
+                    )}
                     {m.created_at && (
                       <span className="inline-flex items-center gap-1">
                         <Clock className="h-3 w-3" />
-                        added {new Date(m.created_at).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" })}
+                        added{" "}
+                        {new Date(m.created_at).toLocaleString("en-IN", {
+                          dateStyle: "short",
+                          timeStyle: "short",
+                        })}
                       </span>
                     )}
                   </div>
@@ -251,7 +325,12 @@ function MembersPage() {
 
         {hasMore && !loading && !q && (
           <div className="flex justify-center border-t border-border p-4">
-            <Button variant="outline" size="sm" onClick={() => load(false)} className="text-xs">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => load(false)}
+              className="text-xs"
+            >
               Load more members
             </Button>
           </div>
@@ -264,15 +343,35 @@ function MembersPage() {
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Members</h1>
-          <p className="text-sm text-muted-foreground">{rows.length}{hasMore ? "+" : ""} total · {activeCount} active</p>
+          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
+            Members
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {rows.length}
+            {hasMore ? "+" : ""} total · {activeCount} active
+          </p>
         </div>
         {isStaff && (
-          <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (next) load(); }}>
+          <Dialog
+            open={open}
+            onOpenChange={(next) => {
+              setOpen(next);
+              if (next) load();
+            }}
+          >
             <DialogTrigger asChild>
-              <Button className="gradient-primary text-primary-foreground shadow-glow"><Plus className="mr-1 h-4 w-4" /> Add member</Button>
+              <Button className="gradient-primary text-primary-foreground shadow-glow">
+                <Plus className="mr-1 h-4 w-4" /> Add member
+              </Button>
             </DialogTrigger>
-            <AddMemberDialog plans={plans} planError={planError} onClose={() => { setOpen(false); load(); }} />
+            <AddMemberDialog
+              plans={plans}
+              planError={planError}
+              onClose={() => {
+                setOpen(false);
+                load();
+              }}
+            />
           </Dialog>
         )}
       </header>
@@ -280,10 +379,19 @@ function MembersPage() {
       <div className="space-y-4">
         <div className="relative w-full">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name, phone or code..." className="pl-9 w-full" />
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search by name, phone or code..."
+            className="pl-9 w-full"
+          />
         </div>
-        
-        <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as "active" | "inactive")} className="w-full space-y-4">
+
+        <Tabs
+          value={activeTab}
+          onValueChange={(val) => setActiveTab(val as "active" | "inactive")}
+          className="w-full space-y-4"
+        >
           <TabsList className="bg-card border border-border/80 p-1">
             <TabsTrigger value="active" className="cursor-pointer">
               Active Member ({activeCount})
@@ -308,19 +416,31 @@ function MembersPage() {
       </div>
 
       {/* Detailed Member Profile Dialog */}
-      <Dialog open={!!selectedMember} onOpenChange={(o) => !o && setSelectedMember(null)}>
+      <Dialog
+        open={!!selectedMember}
+        onOpenChange={(o) => !o && setSelectedMember(null)}
+      >
         {selectedMember && (
           <MemberProfileDialog
             member={selectedMember}
             plans={plans}
             me={me}
-            onClose={() => { setSelectedMember(null); load(); }}
+            onClose={() => {
+              setSelectedMember(null);
+              load();
+            }}
             onEdit={() => setEditingMember(selectedMember)}
             onDelete={() => setDeletingMember(selectedMember)}
             onChangeStatus={async (nextStatus: string) => {
               if (!selectedMember) return;
-              const { error } = await supabase.from("members").update({ status: nextStatus }).eq("id", selectedMember.id);
-              if (error) { toast.error(error.message); return; }
+              const { error } = await supabase
+                .from("members")
+                .update({ status: nextStatus })
+                .eq("id", selectedMember.id);
+              if (error) {
+                toast.error(error.message);
+                return;
+              }
               toast.success(`Membership status updated to ${nextStatus}`);
               setSelectedMember({ ...selectedMember, status: nextStatus });
               load();
@@ -330,7 +450,10 @@ function MembersPage() {
       </Dialog>
 
       {/* Edit Member Details Dialog */}
-      <Dialog open={!!editingMember} onOpenChange={(o) => !o && setEditingMember(null)}>
+      <Dialog
+        open={!!editingMember}
+        onOpenChange={(o) => !o && setEditingMember(null)}
+      >
         {editingMember && (
           <EditMemberDialog
             member={editingMember}
@@ -344,15 +467,24 @@ function MembersPage() {
       </Dialog>
 
       {/* Delete Member Confirmation Dialog */}
-      <Dialog open={!!deletingMember} onOpenChange={(o) => !o && setDeletingMember(null)}>
+      <Dialog
+        open={!!deletingMember}
+        onOpenChange={(o) => !o && setDeletingMember(null)}
+      >
         {deletingMember && (
           <DeleteMemberConfirm
             member={deletingMember}
             onClose={() => setDeletingMember(null)}
             onConfirm={async () => {
               if (!deletingMember) return;
-              const { error } = await supabase.from("members").delete().eq("id", deletingMember.id);
-              if (error) { toast.error(error.message); return; }
+              const { error } = await supabase
+                .from("members")
+                .delete()
+                .eq("id", deletingMember.id);
+              if (error) {
+                toast.error(error.message);
+                return;
+              }
               toast.success("Member profile deleted permanently");
               setDeletingMember(null);
               setSelectedMember(null);
@@ -372,26 +504,48 @@ function StatusPill({ status }: { status: string }) {
     frozen: "bg-info/15 text-info",
     cancelled: "bg-muted text-muted-foreground",
   };
-  return <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium capitalize ${map[status] ?? "bg-muted"}`}>{status}</span>;
+  return (
+    <span
+      className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium capitalize ${map[status] ?? "bg-muted"}`}
+    >
+      {status}
+    </span>
+  );
 }
 
 /* Add Member Dialog component */
-function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planError: string; onClose: () => void }) {
+function AddMemberDialog({
+  plans,
+  planError,
+  onClose,
+}: {
+  plans: Plan[];
+  planError: string;
+  onClose: () => void;
+}) {
   const welcomeEmail = useServerFn(sendWelcomeEmail);
   const receiptEmail = useServerFn(sendReceiptEmail);
   const [full_name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [plan_id, setPlanId] = useState<string>(plans[0]?.id ?? "");
-  const [startDate, setStartDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [startDate, setStartDate] = useState<string>(
+    new Date().toISOString().slice(0, 10),
+  );
   const [paymentMethod, setPaymentMethod] = useState<string>("cash");
   const [busy, setBusy] = useState(false);
 
   const [couponCode, setCouponCode] = useState("");
-  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; percent: number; upto: number } | null>(null);
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    code: string;
+    percent: number;
+    upto: number;
+  } | null>(null);
   const [checkingCoupon, setCheckingCoupon] = useState(false);
 
-  const [allProfiles, setAllProfiles] = useState<{ email: string; full_name: string | null }[]>([]);
+  const [allProfiles, setAllProfiles] = useState<
+    { email: string; full_name: string | null }[]
+  >([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [emailVerified, setEmailVerified] = useState(false);
 
@@ -416,8 +570,7 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
     setCheckingCoupon(true);
     const searchCode = couponCode.trim().toUpperCase();
     try {
-      const { data, error } = await (supabase
-        .from("coupons") as any)
+      const { data, error } = await (supabase.from("coupons") as any)
         .select("*")
         .eq("code", searchCode)
         .eq("active", true)
@@ -429,7 +582,9 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
         toast.error("Invalid or expired coupon code");
         setAppliedCoupon(null);
       } else if (data.max_uses != null && data.used_count >= data.max_uses) {
-        toast.error(`Coupon "${data.code}" has reached its maximum usage limit.`);
+        toast.error(
+          `Coupon "${data.code}" has reached its maximum usage limit.`,
+        );
         setAppliedCoupon(null);
       } else {
         setAppliedCoupon({
@@ -450,20 +605,16 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
   const originalPrice = plan ? plan.price_cents : 0;
   let discountCents = 0;
   if (appliedCoupon && originalPrice > 0) {
-    discountCents = Math.min((originalPrice * appliedCoupon.percent) / 100, appliedCoupon.upto);
+    discountCents = Math.min(
+      (originalPrice * appliedCoupon.percent) / 100,
+      appliedCoupon.upto,
+    );
   }
   const finalPrice = originalPrice - discountCents;
-
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
-
-    if (!plan_id || plan_id === "no-plans") {
-      toast.error("Please select a membership plan first.");
-      setBusy(false);
-      return;
-    }
 
     const cleanPhone = phone.replace(/\D/g, "");
     if (cleanPhone.length !== 10) {
@@ -472,19 +623,27 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
       return;
     }
 
-
     // Check for duplicate phone
     const { data: dupPhone, error: dupPhoneErr } = await supabase
       .from("members")
       .select("id")
       .eq("phone", cleanPhone)
       .maybeSingle();
-    if (dupPhoneErr && dupPhoneErr.code !== "PGRST116" && !dupPhoneErr.message.includes("multiple")) {
+    if (
+      dupPhoneErr &&
+      dupPhoneErr.code !== "PGRST116" &&
+      !dupPhoneErr.message.includes("multiple")
+    ) {
       toast.error(dupPhoneErr.message);
       setBusy(false);
       return;
     }
-    if (dupPhone || (dupPhoneErr && (dupPhoneErr.code === "PGRST116" || dupPhoneErr.message.includes("multiple")))) {
+    if (
+      dupPhone ||
+      (dupPhoneErr &&
+        (dupPhoneErr.code === "PGRST116" ||
+          dupPhoneErr.message.includes("multiple")))
+    ) {
       toast.error("A member with this phone number already exists.");
       setBusy(false);
       return;
@@ -497,12 +656,21 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
         .select("id")
         .eq("email", email.trim().toLowerCase())
         .maybeSingle();
-      if (dupEmailErr && dupEmailErr.code !== "PGRST116" && !dupEmailErr.message.includes("multiple")) {
+      if (
+        dupEmailErr &&
+        dupEmailErr.code !== "PGRST116" &&
+        !dupEmailErr.message.includes("multiple")
+      ) {
         toast.error(dupEmailErr.message);
         setBusy(false);
         return;
       }
-      if (dupEmail || (dupEmailErr && (dupEmailErr.code === "PGRST116" || dupEmailErr.message.includes("multiple")))) {
+      if (
+        dupEmail ||
+        (dupEmailErr &&
+          (dupEmailErr.code === "PGRST116" ||
+            dupEmailErr.message.includes("multiple")))
+      ) {
         toast.error("A member with this email address already exists.");
         setBusy(false);
         return;
@@ -513,7 +681,9 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
     const userId = userData.user?.id ?? null;
     // Use the admin-chosen start date for expiry calculation
     const expires_at = plan
-      ? new Date(new Date(startDate).getTime() + plan.duration_days * 86400000).toISOString().slice(0, 10)
+      ? new Date(new Date(startDate).getTime() + plan.duration_days * 86400000)
+          .toISOString()
+          .slice(0, 10)
       : null;
     const { error, data } = await supabase
       .from("members")
@@ -529,15 +699,20 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
       })
       .select()
       .single();
-    if (error) { toast.error(error.message); setBusy(false); return; }
+    if (error) {
+      toast.error(error.message);
+      setBusy(false);
+      return;
+    }
 
     // Increment coupon usage count if a coupon was applied
     if (appliedCoupon) {
-      await (supabase as any).rpc("increment_coupon_usage", { coupon_code: appliedCoupon.code }).catch(() => {
-        // Silently fail — coupon was already validated
-      });
+      await (supabase as any)
+        .rpc("increment_coupon_usage", { coupon_code: appliedCoupon.code })
+        .catch(() => {
+          // Silently fail — coupon was already validated
+        });
     }
-
 
     // Log audit event
     await supabase.from("audit_logs").insert({
@@ -552,10 +727,10 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
         email: data.email,
         plan_id: data.plan_id,
         coupon_code: data.coupon_code,
-        coupon_discount_cents: data.coupon_discount_cents
-      }
+        coupon_discount_cents: data.coupon_discount_cents,
+      },
     });
-    
+
     // Trigger welcome email asynchronously
     if (email && data) {
       welcomeEmail({
@@ -563,9 +738,11 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
           to: email,
           name: full_name,
           plan: plan?.name,
-          startsAt: plan ? new Date(startDate).toLocaleDateString("en-IN") : undefined,
-          expiresAt: expires_at ?? undefined
-        }
+          startsAt: plan
+            ? new Date(startDate).toLocaleDateString("en-IN")
+            : undefined,
+          expiresAt: expires_at ?? undefined,
+        },
       }).catch((err) => {
         console.error("Failed to send welcome email:", err);
       });
@@ -591,7 +768,9 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
         .single();
 
       if (invErr) {
-        toast.error("Member added, but failed to create invoice: " + invErr.message);
+        toast.error(
+          "Member added, but failed to create invoice: " + invErr.message,
+        );
       } else if (invData) {
         // Auto-generate payment record to track financial inflow in billing tab
         const { error: payErr } = await supabase.from("payments").insert({
@@ -610,9 +789,13 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
               to: email,
               name: full_name,
               invoiceNumber: invData.invoice_number,
-              amount: new Intl.NumberFormat(undefined, { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(finalPrice / 100),
-              method: paymentMethod
-            }
+              amount: new Intl.NumberFormat(undefined, {
+                style: "currency",
+                currency: "INR",
+                maximumFractionDigits: 0,
+              }).format(finalPrice / 100),
+              method: paymentMethod,
+            },
           }).catch((err) => {
             console.error("Failed to send signup receipt email:", err);
           });
@@ -626,24 +809,46 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
 
   return (
     <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto scrollbar-thin">
-      <DialogHeader><DialogTitle>Add member</DialogTitle></DialogHeader>
+      <DialogHeader>
+        <DialogTitle>Add member</DialogTitle>
+      </DialogHeader>
       <form onSubmit={submit} className="space-y-3">
-        <div><Label>Full name</Label><Input value={full_name} onChange={(e) => setName(e.target.value)} required /></div>
-        <div><Label>Phone</Label><Input value={phone} onChange={(e) => setPhone(e.target.value)} required /></div>
+        <div>
+          <Label>Full name</Label>
+          <Input
+            value={full_name}
+            onChange={(e) => setName(e.target.value)}
+            required
+          />
+        </div>
+        <div>
+          <Label>Phone</Label>
+          <Input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            required
+          />
+        </div>
         <div className="relative">
-          <Label htmlFor="member-email">Email <span className="text-destructive">*</span></Label>
+          <Label htmlFor="member-email">
+            Email <span className="text-destructive">*</span>
+          </Label>
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
-              <Input 
+              <Input
                 id="member-email"
-                type="email" 
-                value={email} 
+                type="email"
+                value={email}
                 onChange={(e) => {
                   const val = e.target.value;
                   setEmail(val);
                   setShowSuggestions(true);
-                  setEmailVerified(allProfiles.some((p) => p.email.toLowerCase() === val.trim().toLowerCase()));
-                }} 
+                  setEmailVerified(
+                    allProfiles.some(
+                      (p) => p.email.toLowerCase() === val.trim().toLowerCase(),
+                    ),
+                  );
+                }}
                 onFocus={() => setShowSuggestions(true)}
                 onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                 required
@@ -651,19 +856,24 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
                 className={emailVerified ? "border-emerald-500/60 pr-8" : ""}
               />
               {emailVerified && (
-                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-emerald-400 text-[10px] font-bold">✓</span>
+                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-emerald-400 text-[10px] font-bold">
+                  ✓
+                </span>
               )}
             </div>
           </div>
-          {showSuggestions && email.length >= 1 && (
+          {showSuggestions &&
+            email.length >= 1 &&
             (() => {
-              const filteredProfiles = allProfiles.filter(p => p.email.toLowerCase().includes(email.toLowerCase()));
+              const filteredProfiles = allProfiles.filter((p) =>
+                p.email.toLowerCase().includes(email.toLowerCase()),
+              );
               if (filteredProfiles.length === 0) return null;
               return (
                 <ul className="absolute left-0 right-0 z-50 mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-card shadow-lg divide-y divide-border/60">
                   {filteredProfiles.map((p) => (
-                    <li 
-                      key={p.email} 
+                    <li
+                      key={p.email}
                       onMouseDown={() => {
                         setEmail(p.email);
                         setEmailVerified(true);
@@ -671,35 +881,59 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
                       }}
                       className="px-3 py-2 text-xs hover:bg-muted cursor-pointer transition flex flex-col gap-0.5"
                     >
-                      <span className="font-semibold text-foreground">{p.email}</span>
-                      {p.full_name && <span className="text-[10px] text-muted-foreground">{p.full_name}</span>}
+                      <span className="font-semibold text-foreground">
+                        {p.email}
+                      </span>
+                      {p.full_name && (
+                        <span className="text-[10px] text-muted-foreground">
+                          {p.full_name}
+                        </span>
+                      )}
                     </li>
                   ))}
                 </ul>
               );
-            })()
-          )}
+            })()}
           {emailVerified && (
-            <p className="mt-1 text-[11px] text-emerald-400">✓ Matched to a registered account.</p>
+            <p className="mt-1 text-[11px] text-emerald-400">
+              ✓ Matched to a registered account.
+            </p>
           )}
         </div>
         <div>
           <Label>Plan</Label>
-          <Select value={plan_id} onValueChange={(val) => { setPlanId(val); setAppliedCoupon(null); }}>
-            <SelectTrigger><SelectValue placeholder="Select a plan" /></SelectTrigger>
+          <Select
+            value={plan_id}
+            onValueChange={(val) => {
+              setPlanId(val);
+              setAppliedCoupon(null);
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select a plan" />
+            </SelectTrigger>
             <SelectContent>
               {plans.length === 0 ? (
                 <SelectItem value="no-plans" disabled>
                   {planError ? "Could not load plans" : "No active plans found"}
                 </SelectItem>
-              ) : plans.map((p) => (
-                <SelectItem key={p.id} value={p.id}>{p.name} - {p.duration_days}d - Rs {(p.price_cents / 100).toLocaleString()}</SelectItem>
-              ))}
+              ) : (
+                plans.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name} - {p.duration_days}d - Rs{" "}
+                    {(p.price_cents / 100).toLocaleString()}
+                  </SelectItem>
+                ))
+              )}
             </SelectContent>
           </Select>
-          {planError && <p className="mt-1 text-xs text-destructive">{planError}</p>}
+          {planError && (
+            <p className="mt-1 text-xs text-destructive">{planError}</p>
+          )}
           {!planError && plans.length === 0 && (
-            <p className="mt-1 text-xs text-muted-foreground">Add a membership plan from the admin dashboard first.</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Add a membership plan from the admin dashboard first.
+            </p>
           )}
         </div>
         {plan_id && (
@@ -713,7 +947,8 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
               className="mt-1"
             />
             <p className="mt-1 text-[11px] text-muted-foreground">
-              Expiry will be calculated as: start date + plan duration ({plan?.duration_days} days)
+              Expiry will be calculated as: start date + plan duration (
+              {plan?.duration_days} days)
             </p>
           </div>
         )}
@@ -739,14 +974,17 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
           </div>
           {appliedCoupon && (
             <p className="mt-1 text-xs text-emerald-400 font-medium">
-              Coupon applied! {appliedCoupon.percent}% off (max Rs {appliedCoupon.upto / 100})
+              Coupon applied! {appliedCoupon.percent}% off (max Rs{" "}
+              {appliedCoupon.upto / 100})
             </p>
           )}
         </div>
         <div>
           <Label>Payment Method</Label>
           <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-            <SelectTrigger><SelectValue placeholder="Select payment method" /></SelectTrigger>
+            <SelectTrigger>
+              <SelectValue placeholder="Select payment method" />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="cash">Cash</SelectItem>
               <SelectItem value="upi">UPI</SelectItem>
@@ -769,13 +1007,19 @@ function AddMemberDialog({ plans, planError, onClose }: { plans: Plan[]; planErr
             )}
             <div className="flex justify-between border-t border-border/40 pt-1.5 font-bold text-foreground text-sm">
               <span>Total Amount:</span>
-              <span className="text-primary">Rs {(finalPrice / 100).toLocaleString()}</span>
+              <span className="text-primary">
+                Rs {(finalPrice / 100).toLocaleString()}
+              </span>
             </div>
           </div>
         )}
 
         <DialogFooter>
-          <Button type="submit" disabled={busy || plans.length === 0} className="gradient-primary text-primary-foreground">
+          <Button
+            type="submit"
+            disabled={busy || plans.length === 0}
+            className="gradient-primary text-primary-foreground"
+          >
             {busy ? "Saving..." : "Add member"}
           </Button>
         </DialogFooter>
@@ -812,7 +1056,9 @@ function MemberProfileDialog({
 
   const [showRenew, setShowRenew] = useState(false);
   const [renewPlanId, setRenewPlanId] = useState(plans[0]?.id ?? "");
-  const [renewMethod, setRenewMethod] = useState<"cash" | "upi" | "card" | "bank">("upi");
+  const [renewMethod, setRenewMethod] = useState<
+    "cash" | "upi" | "card" | "bank"
+  >("upi");
   const [renewRef, setRenewRef] = useState("");
   const [renewing, setRenewing] = useState(false);
 
@@ -842,8 +1088,10 @@ function MemberProfileDialog({
           baseDate = currentExpiry;
         }
       }
-      
-      const newExpiry = new Date(baseDate.getTime() + plan.duration_days * 86400000)
+
+      const newExpiry = new Date(
+        baseDate.getTime() + plan.duration_days * 86400000,
+      )
         .toISOString()
         .slice(0, 10);
 
@@ -895,9 +1143,13 @@ function MemberProfileDialog({
             to: member.email,
             name: member.full_name,
             invoiceNumber: invData.invoice_number,
-            amount: new Intl.NumberFormat(undefined, { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(plan.price_cents / 100),
-            method: renewMethod
-          }
+            amount: new Intl.NumberFormat(undefined, {
+              style: "currency",
+              currency: "INR",
+              maximumFractionDigits: 0,
+            }).format(plan.price_cents / 100),
+            method: renewMethod,
+          },
         }).catch((err) => {
           console.error("Failed to send renewal receipt email:", err);
         });
@@ -913,7 +1165,8 @@ function MemberProfileDialog({
     }
   }
 
-  const activePlan = plans.find((p) => p.id === member.plan_id)?.name ?? "No plan";
+  const activePlan =
+    plans.find((p) => p.id === member.plan_id)?.name ?? "No plan";
 
   useEffect(() => {
     setImageError(false);
@@ -941,10 +1194,14 @@ function MemberProfileDialog({
     const filePath = `${member.id}-${Math.random()}.${fileExt}`;
 
     try {
-      const { error: uploadError } = await supabase.storage.from("photos").upload(filePath, file);
+      const { error: uploadError } = await supabase.storage
+        .from("photos")
+        .upload(filePath, file);
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage.from("photos").getPublicUrl(filePath);
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("photos").getPublicUrl(filePath);
 
       const { error: updateError } = await supabase
         .from("members")
@@ -952,8 +1209,6 @@ function MemberProfileDialog({
         .eq("id", member.id);
 
       if (updateError) throw updateError;
-
-
 
       toast.success("Photo uploaded successfully");
       onClose(); // Reload data via closing and reloading
@@ -974,18 +1229,28 @@ function MemberProfileDialog({
           <div>
             <Label htmlFor="renew-plan">Select Plan</Label>
             <Select value={renewPlanId} onValueChange={setRenewPlanId}>
-              <SelectTrigger id="renew-plan"><SelectValue placeholder="Select a plan" /></SelectTrigger>
+              <SelectTrigger id="renew-plan">
+                <SelectValue placeholder="Select a plan" />
+              </SelectTrigger>
               <SelectContent>
                 {plans.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>{p.name} - {p.duration_days}d - Rs {(p.price_cents / 100).toLocaleString()}</SelectItem>
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name} - {p.duration_days}d - Rs{" "}
+                    {(p.price_cents / 100).toLocaleString()}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div>
             <Label htmlFor="renew-method">Payment Method</Label>
-            <Select value={renewMethod} onValueChange={(v: any) => setRenewMethod(v)}>
-              <SelectTrigger id="renew-method"><SelectValue placeholder="Select payment method" /></SelectTrigger>
+            <Select
+              value={renewMethod}
+              onValueChange={(v: any) => setRenewMethod(v)}
+            >
+              <SelectTrigger id="renew-method">
+                <SelectValue placeholder="Select payment method" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="upi">UPI</SelectItem>
                 <SelectItem value="cash">Cash</SelectItem>
@@ -996,13 +1261,27 @@ function MemberProfileDialog({
           </div>
           <div>
             <Label htmlFor="renew-ref">Reference (optional)</Label>
-            <Input id="renew-ref" value={renewRef} onChange={(e) => setRenewRef(e.target.value)} placeholder="Txn id, receipt no. etc." />
+            <Input
+              id="renew-ref"
+              value={renewRef}
+              onChange={(e) => setRenewRef(e.target.value)}
+              placeholder="Txn id, receipt no. etc."
+            />
           </div>
           <DialogFooter className="gap-2">
-            <Button type="button" variant="outline" onClick={() => setShowRenew(false)} disabled={renewing}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowRenew(false)}
+              disabled={renewing}
+            >
               Back
             </Button>
-            <Button type="submit" disabled={renewing || !renewPlanId} className="gradient-primary text-primary-foreground">
+            <Button
+              type="submit"
+              disabled={renewing || !renewPlanId}
+              className="gradient-primary text-primary-foreground"
+            >
               {renewing ? "Renewing..." : "Record Renewal & Pay"}
             </Button>
           </DialogFooter>
@@ -1028,17 +1307,30 @@ function MemberProfileDialog({
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <DialogTitle className="text-xl font-bold">{member.full_name}</DialogTitle>
-            <p className="text-sm text-muted-foreground">{member.member_code} · Joined {new Date(member.joined_at).toLocaleDateString()}</p>
+            <DialogTitle className="text-xl font-bold">
+              {member.full_name}
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              {member.member_code} · Joined{" "}
+              {new Date(member.joined_at).toLocaleDateString()}
+            </p>
           </div>
           <div className="flex flex-col items-end gap-1.5">
             <StatusPill status={member.status} />
             {isStaff && (
               <Select value={member.status} onValueChange={onChangeStatus}>
-                <SelectTrigger className="h-7 w-24 text-[10px]"><SelectValue placeholder="Status" /></SelectTrigger>
+                <SelectTrigger className="h-7 w-24 text-[10px]">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
                 <SelectContent>
                   {["active", "expired", "frozen", "cancelled"].map((s) => (
-                    <SelectItem key={s} value={s} className="capitalize text-xs">{s}</SelectItem>
+                    <SelectItem
+                      key={s}
+                      value={s}
+                      className="capitalize text-xs"
+                    >
+                      {s}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -1059,50 +1351,77 @@ function MemberProfileDialog({
             {isStaff && (
               <>
                 <div>
-                  <span className="text-xs uppercase text-muted-foreground">Phone</span>
+                  <span className="text-xs uppercase text-muted-foreground">
+                    Phone
+                  </span>
                   <p className="text-sm font-medium">{member.phone}</p>
                 </div>
                 <div>
-                  <span className="text-xs uppercase text-muted-foreground">Email</span>
+                  <span className="text-xs uppercase text-muted-foreground">
+                    Email
+                  </span>
                   <p className="text-sm font-medium">{member.email ?? "—"}</p>
                 </div>
               </>
             )}
             <div>
-              <span className="text-xs uppercase text-muted-foreground">Active Plan</span>
+              <span className="text-xs uppercase text-muted-foreground">
+                Active Plan
+              </span>
               <p className="text-sm font-medium">{activePlan}</p>
             </div>
             <div>
-              <span className="text-xs uppercase text-muted-foreground">Valid Until</span>
+              <span className="text-xs uppercase text-muted-foreground">
+                Valid Until
+              </span>
               <p className="text-sm font-medium">{member.expires_at ?? "—"}</p>
             </div>
             {member.created_at && (
               <div>
-                <span className="text-xs uppercase text-muted-foreground">Registered At</span>
+                <span className="text-xs uppercase text-muted-foreground">
+                  Registered At
+                </span>
                 <p className="text-sm font-medium">
-                  {new Date(member.created_at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+                  {new Date(member.created_at).toLocaleString("en-IN", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })}
                 </p>
               </div>
             )}
             {member.coupon_code && (
               <div>
-                <span className="text-xs uppercase text-muted-foreground">Promo Coupon</span>
+                <span className="text-xs uppercase text-muted-foreground">
+                  Promo Coupon
+                </span>
                 <p className="text-sm font-semibold text-primary">
-                  {member.coupon_code} (-Rs {((member.coupon_discount_cents ?? 0) / 100).toLocaleString()})
+                  {member.coupon_code} (-Rs{" "}
+                  {((member.coupon_discount_cents ?? 0) / 100).toLocaleString()}
+                  )
                 </p>
               </div>
             )}
             <div>
-              <span className="text-xs uppercase text-muted-foreground">Gender</span>
-              <p className="text-sm font-medium capitalize">{member.gender ?? "—"}</p>
+              <span className="text-xs uppercase text-muted-foreground">
+                Gender
+              </span>
+              <p className="text-sm font-medium capitalize">
+                {member.gender ?? "—"}
+              </p>
             </div>
             <div>
-              <span className="text-xs uppercase text-muted-foreground">DOB</span>
-              <p className="text-sm font-medium">{member.date_of_birth ?? "—"}</p>
+              <span className="text-xs uppercase text-muted-foreground">
+                DOB
+              </span>
+              <p className="text-sm font-medium">
+                {member.date_of_birth ?? "—"}
+              </p>
             </div>
           </div>
           <div>
-            <span className="text-xs uppercase text-muted-foreground">Address</span>
+            <span className="text-xs uppercase text-muted-foreground">
+              Address
+            </span>
             <p className="text-sm font-medium">{member.address ?? "—"}</p>
           </div>
           <div className="rounded-xl border border-border/60 bg-muted/20 p-3.5 space-y-3">
@@ -1110,38 +1429,65 @@ function MemberProfileDialog({
               <>
                 <div className="flex items-center gap-2 text-warning">
                   <ShieldAlert className="h-4 w-4" />
-                  <span className="text-xs font-semibold uppercase tracking-wider">Emergency Contact</span>
+                  <span className="text-xs font-semibold uppercase tracking-wider">
+                    Emergency Contact
+                  </span>
                 </div>
-                <p className="text-sm font-medium">{member.emergency_contact ?? "No contact details provided."}</p>
+                <p className="text-sm font-medium">
+                  {member.emergency_contact ?? "No contact details provided."}
+                </p>
                 <div className="border-t border-border/30 pt-1.5" />
               </>
             )}
 
             <div className="flex items-center gap-2 text-destructive">
               <HeartPulse className="h-4 w-4" />
-              <span className="text-xs font-semibold uppercase tracking-wider">Medical Information</span>
+              <span className="text-xs font-semibold uppercase tracking-wider">
+                Medical Information
+              </span>
             </div>
-            <p className="text-sm font-medium">{member.medical_info ?? "No medical alerts logged."}</p>
+            <p className="text-sm font-medium">
+              {member.medical_info ?? "No medical alerts logged."}
+            </p>
           </div>
         </TabsContent>
 
         <TabsContent value="history" className="space-y-3 pt-3">
-          <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Billing & Plan History</div>
+          <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Billing & Plan History
+          </div>
           {loadingHistory ? (
-            <p className="text-xs text-muted-foreground py-4 text-center">Loading invoices...</p>
+            <p className="text-xs text-muted-foreground py-4 text-center">
+              Loading invoices...
+            </p>
           ) : invoices.length === 0 ? (
-            <p className="text-xs text-muted-foreground py-4 text-center">No invoice history found.</p>
+            <p className="text-xs text-muted-foreground py-4 text-center">
+              No invoice history found.
+            </p>
           ) : (
             <div className="max-h-60 overflow-y-auto space-y-2 pr-1 scrollbar-thin">
               {invoices.map((inv) => (
-                <div key={inv.id} className="flex items-center justify-between rounded-lg border border-border bg-background p-2.5 text-xs">
+                <div
+                  key={inv.id}
+                  className="flex items-center justify-between rounded-lg border border-border bg-background p-2.5 text-xs"
+                >
                   <div>
-                    <span className="font-mono text-muted-foreground">{inv.invoice_number}</span>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">Issued {new Date(inv.issued_at).toLocaleDateString()}</p>
+                    <span className="font-mono text-muted-foreground">
+                      {inv.invoice_number}
+                    </span>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      Issued {new Date(inv.issued_at).toLocaleDateString()}
+                    </p>
                   </div>
                   <div className="text-right">
-                    <span className="font-semibold text-foreground">Rs {(inv.total_cents / 100).toLocaleString()}</span>
-                    <span className={`block text-[10px] font-medium capitalize mt-0.5 ${inv.status === 'paid' ? 'text-success' : 'text-warning'}`}>{inv.status}</span>
+                    <span className="font-semibold text-foreground">
+                      Rs {(inv.total_cents / 100).toLocaleString()}
+                    </span>
+                    <span
+                      className={`block text-[10px] font-medium capitalize mt-0.5 ${inv.status === "paid" ? "text-success" : "text-warning"}`}
+                    >
+                      {inv.status}
+                    </span>
                   </div>
                 </div>
               ))}
@@ -1152,29 +1498,50 @@ function MemberProfileDialog({
         <TabsContent value="photo" className="space-y-4 pt-3">
           {isStaff ? (
             <div>
-              <Label className="text-xs uppercase text-muted-foreground">Set Profile Photo</Label>
+              <Label className="text-xs uppercase text-muted-foreground">
+                Set Profile Photo
+              </Label>
               <div className="mt-1.5 flex items-center gap-3">
-                <Input type="file" accept="image/*" onChange={handlePhotoUpload} disabled={uploading} className="text-xs" />
-                {uploading && <span className="text-xs text-muted-foreground animate-pulse">Uploading...</span>}
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoUpload}
+                  disabled={uploading}
+                  className="text-xs"
+                />
+                {uploading && (
+                  <span className="text-xs text-muted-foreground animate-pulse">
+                    Uploading...
+                  </span>
+                )}
               </div>
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground">Only staff can modify member photos.</p>
+            <p className="text-xs text-muted-foreground">
+              Only staff can modify member photos.
+            </p>
           )}
 
           <div className="border-t border-border pt-4 flex flex-wrap gap-2">
             {isStaff && (
-              <Button onClick={() => setShowRenew(true)} className="flex-1 gap-1.5 text-xs gradient-primary text-primary-foreground shadow-glow min-w-[140px]">
+              <Button
+                onClick={() => setShowRenew(true)}
+                className="flex-1 gap-1.5 text-xs gradient-primary text-primary-foreground shadow-glow min-w-[140px]"
+              >
                 <RefreshCw className="h-3.5 w-3.5" /> Renew Membership
               </Button>
             )}
             {isStaff && (
-              <Button onClick={onEdit} variant="outline" className="flex-1 gap-1.5 text-xs min-w-[140px]">
+              <Button
+                onClick={onEdit}
+                variant="outline"
+                className="flex-1 gap-1.5 text-xs min-w-[140px]"
+              >
                 <Edit2 className="h-3.5 w-3.5" /> Edit Profile
               </Button>
             )}
             {isStaff && member.email && (
-              <Button 
+              <Button
                 onClick={async () => {
                   try {
                     toast.info("Sending welcome email...");
@@ -1183,22 +1550,26 @@ function MemberProfileDialog({
                         to: member.email!,
                         name: member.full_name,
                         plan: activePlan,
-                        expiresAt: member.expires_at ?? undefined
-                      }
+                        expiresAt: member.expires_at ?? undefined,
+                      },
                     });
                     toast.success("Welcome email sent successfully!");
                   } catch (err: any) {
                     toast.error("Failed to send welcome email: " + err.message);
                   }
-                }} 
-                variant="outline" 
+                }}
+                variant="outline"
                 className="flex-1 gap-1.5 text-xs min-w-[140px]"
               >
                 <Mail className="h-3.5 w-3.5" /> Send Welcome Email
               </Button>
             )}
             {isStaff && (
-              <Button onClick={onDelete} variant="destructive" className="flex-1 gap-1.5 text-xs min-w-[140px]">
+              <Button
+                onClick={onDelete}
+                variant="destructive"
+                className="flex-1 gap-1.5 text-xs min-w-[140px]"
+              >
                 <Trash2 className="h-3.5 w-3.5" /> Delete Member
               </Button>
             )}
@@ -1210,7 +1581,15 @@ function MemberProfileDialog({
 }
 
 /* Edit Member Details Dialog Component */
-function EditMemberDialog({ member, plans, onClose }: { member: Member; plans: Plan[]; onClose: () => void }) {
+function EditMemberDialog({
+  member,
+  plans,
+  onClose,
+}: {
+  member: Member;
+  plans: Plan[];
+  onClose: () => void;
+}) {
   const me = useCurrentUser();
   const isStaff = me.isStaff;
   const memberEditEmail = useServerFn(sendMemberEditEmail);
@@ -1222,18 +1601,26 @@ function EditMemberDialog({ member, plans, onClose }: { member: Member; plans: P
   const [address, setAddress] = useState(member.address ?? "");
   const [planId, setPlanId] = useState(member.plan_id ?? "");
   const [status, setStatus] = useState(member.status);
-  const [emergencyContact, setEmergencyContact] = useState(member.emergency_contact ?? "");
+  const [emergencyContact, setEmergencyContact] = useState(
+    member.emergency_contact ?? "",
+  );
   const [medicalInfo, setMedicalInfo] = useState(member.medical_info ?? "");
   const [notes, setNotes] = useState(member.notes ?? "");
   const [busy, setBusy] = useState(false);
 
-  const [joinedAt, setJoinedAt] = useState(member.joined_at ? member.joined_at.slice(0, 10) : "");
-  const [expiresAt, setExpiresAt] = useState(member.expires_at ? member.expires_at.slice(0, 10) : "");
+  const [joinedAt, setJoinedAt] = useState(
+    member.joined_at ? member.joined_at.slice(0, 10) : "",
+  );
+  const [expiresAt, setExpiresAt] = useState(
+    member.expires_at ? member.expires_at.slice(0, 10) : "",
+  );
 
   useEffect(() => {
     const plan = plans.find((p) => p.id === planId);
     if (plan && joinedAt) {
-      const expDate = new Date(new Date(joinedAt).getTime() + plan.duration_days * 86400000)
+      const expDate = new Date(
+        new Date(joinedAt).getTime() + plan.duration_days * 86400000,
+      )
         .toISOString()
         .slice(0, 10);
       setExpiresAt(expDate);
@@ -1260,12 +1647,21 @@ function EditMemberDialog({ member, plans, onClose }: { member: Member; plans: P
       .eq("phone", cleanPhone)
       .neq("id", member.id)
       .maybeSingle();
-    if (dupPhoneErr && dupPhoneErr.code !== "PGRST116" && !dupPhoneErr.message.includes("multiple")) {
+    if (
+      dupPhoneErr &&
+      dupPhoneErr.code !== "PGRST116" &&
+      !dupPhoneErr.message.includes("multiple")
+    ) {
       toast.error(dupPhoneErr.message);
       setBusy(false);
       return;
     }
-    if (dupPhone || (dupPhoneErr && (dupPhoneErr.code === "PGRST116" || dupPhoneErr.message.includes("multiple")))) {
+    if (
+      dupPhone ||
+      (dupPhoneErr &&
+        (dupPhoneErr.code === "PGRST116" ||
+          dupPhoneErr.message.includes("multiple")))
+    ) {
       toast.error("Another member with this phone number already exists.");
       setBusy(false);
       return;
@@ -1279,12 +1675,21 @@ function EditMemberDialog({ member, plans, onClose }: { member: Member; plans: P
         .eq("email", email.trim().toLowerCase())
         .neq("id", member.id)
         .maybeSingle();
-      if (dupEmailErr && dupEmailErr.code !== "PGRST116" && !dupEmailErr.message.includes("multiple")) {
+      if (
+        dupEmailErr &&
+        dupEmailErr.code !== "PGRST116" &&
+        !dupEmailErr.message.includes("multiple")
+      ) {
         toast.error(dupEmailErr.message);
         setBusy(false);
         return;
       }
-      if (dupEmail || (dupEmailErr && (dupEmailErr.code === "PGRST116" || dupEmailErr.message.includes("multiple")))) {
+      if (
+        dupEmail ||
+        (dupEmailErr &&
+          (dupEmailErr.code === "PGRST116" ||
+            dupEmailErr.message.includes("multiple")))
+      ) {
         toast.error("Another member with this email address already exists.");
         setBusy(false);
         return;
@@ -1308,16 +1713,25 @@ function EditMemberDialog({ member, plans, onClose }: { member: Member; plans: P
     checkChange("Date of Birth", member.date_of_birth, dob);
     checkChange("Address", member.address, address);
     checkChange("Membership Status", member.status, status);
-    checkChange("Emergency Contact", member.emergency_contact, emergencyContact);
+    checkChange(
+      "Emergency Contact",
+      member.emergency_contact,
+      emergencyContact,
+    );
     checkChange("Medical Information", member.medical_info, medicalInfo);
     checkChange("Notes", member.notes, notes);
     checkChange("Joining Date", member.joined_at, joinedAt);
     checkChange("Expiry Date", member.expires_at, expiresAt);
 
     if (member.plan_id !== planId) {
-      const oldPlan = plans.find(p => p.id === member.plan_id)?.name ?? "None";
-      const newPlan = plans.find(p => p.id === planId)?.name ?? "None";
-      changes.push({ field: "Membership Plan", oldValue: oldPlan, newValue: newPlan });
+      const oldPlan =
+        plans.find((p) => p.id === member.plan_id)?.name ?? "None";
+      const newPlan = plans.find((p) => p.id === planId)?.name ?? "None";
+      changes.push({
+        field: "Membership Plan",
+        oldValue: oldPlan,
+        newValue: newPlan,
+      });
     }
 
     const { error } = await supabase
@@ -1361,7 +1775,7 @@ function EditMemberDialog({ member, plans, onClose }: { member: Member; plans: P
         status,
         joined_at: joinedAt,
         expires_at: expiresAt || null,
-      }
+      },
     });
 
     // Send profile update email if any changes were made and email is available
@@ -1372,7 +1786,7 @@ function EditMemberDialog({ member, plans, onClose }: { member: Member; plans: P
           to: targetEmail,
           name: fullName.trim() || member.full_name,
           changes,
-        }
+        },
       }).catch((err) => {
         console.error("Failed to send profile update email:", err);
       });
@@ -1390,16 +1804,39 @@ function EditMemberDialog({ member, plans, onClose }: { member: Member; plans: P
       </DialogHeader>
       <form onSubmit={submit} className="space-y-4 pt-2">
         <div className="grid grid-cols-2 gap-3">
-          <div><Label>Full name</Label><Input value={fullName} onChange={(e) => setFullName(e.target.value)} required /></div>
-          <div><Label>Phone</Label><Input value={phone} onChange={(e) => setPhone(e.target.value)} required /></div>
+          <div>
+            <Label>Full name</Label>
+            <Input
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              required
+            />
+          </div>
+          <div>
+            <Label>Phone</Label>
+            <Input
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              required
+            />
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <div><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
+          <div>
+            <Label>Email</Label>
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
           <div>
             <Label>Gender</Label>
             <Select value={gender} onValueChange={setGender}>
-              <SelectTrigger><SelectValue placeholder="Gender" /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue placeholder="Gender" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="male">Male</SelectItem>
                 <SelectItem value="female">Female</SelectItem>
@@ -1410,14 +1847,25 @@ function EditMemberDialog({ member, plans, onClose }: { member: Member; plans: P
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <div><Label>Date of Birth</Label><Input type="date" value={dob} onChange={(e) => setDob(e.target.value)} /></div>
+          <div>
+            <Label>Date of Birth</Label>
+            <Input
+              type="date"
+              value={dob}
+              onChange={(e) => setDob(e.target.value)}
+            />
+          </div>
           <div>
             <Label>Plan</Label>
             <Select value={planId} onValueChange={setPlanId}>
-              <SelectTrigger><SelectValue placeholder="Select plan" /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue placeholder="Select plan" />
+              </SelectTrigger>
               <SelectContent>
                 {plans.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>{p.name} - {p.duration_days}d</SelectItem>
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name} - {p.duration_days}d
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -1449,25 +1897,75 @@ function EditMemberDialog({ member, plans, onClose }: { member: Member; plans: P
         <div className="grid grid-cols-2 gap-3">
           <div>
             <Label>Membership Status</Label>
-            <Select value={status} onValueChange={setStatus} disabled={!isStaff}>
-              <SelectTrigger className="capitalize"><SelectValue placeholder="Status" /></SelectTrigger>
+            <Select
+              value={status}
+              onValueChange={setStatus}
+              disabled={!isStaff}
+            >
+              <SelectTrigger className="capitalize">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
               <SelectContent>
                 {["active", "expired", "frozen", "cancelled"].map((s) => (
-                  <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>
+                  <SelectItem key={s} value={s} className="capitalize">
+                    {s}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          <div><Label>Emergency Contact</Label><Input value={emergencyContact} onChange={(e) => setEmergencyContact(e.target.value)} placeholder="Name & Phone" /></div>
+          <div>
+            <Label>Emergency Contact</Label>
+            <Input
+              value={emergencyContact}
+              onChange={(e) => setEmergencyContact(e.target.value)}
+              placeholder="Name & Phone"
+            />
+          </div>
         </div>
 
-        <div><Label>Address</Label><Textarea value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Physical address" rows={2} /></div>
-        <div><Label>Medical Information (Conditions/Alerts)</Label><Textarea value={medicalInfo} onChange={(e) => setMedicalInfo(e.target.value)} placeholder="Asthma, heart condition, allergies, etc." rows={2} /></div>
-        <div><Label>Internal Staff Notes</Label><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="General remarks" rows={2} /></div>
+        <div>
+          <Label>Address</Label>
+          <Textarea
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder="Physical address"
+            rows={2}
+          />
+        </div>
+        <div>
+          <Label>Medical Information (Conditions/Alerts)</Label>
+          <Textarea
+            value={medicalInfo}
+            onChange={(e) => setMedicalInfo(e.target.value)}
+            placeholder="Asthma, heart condition, allergies, etc."
+            rows={2}
+          />
+        </div>
+        <div>
+          <Label>Internal Staff Notes</Label>
+          <Textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="General remarks"
+            rows={2}
+          />
+        </div>
 
         <DialogFooter className="pt-2">
-          <Button type="button" onClick={onClose} variant="outline" disabled={busy}>Cancel</Button>
-          <Button type="submit" disabled={busy} className="gradient-primary text-primary-foreground">
+          <Button
+            type="button"
+            onClick={onClose}
+            variant="outline"
+            disabled={busy}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            disabled={busy}
+            className="gradient-primary text-primary-foreground"
+          >
             {busy ? "Saving..." : "Save changes"}
           </Button>
         </DialogFooter>
@@ -1477,7 +1975,15 @@ function EditMemberDialog({ member, plans, onClose }: { member: Member; plans: P
 }
 
 /* Delete Member Confirmation Component */
-function DeleteMemberConfirm({ member, onClose, onConfirm }: { member: Member; onClose: () => void; onConfirm: () => Promise<void> }) {
+function DeleteMemberConfirm({
+  member,
+  onClose,
+  onConfirm,
+}: {
+  member: Member;
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+}) {
   const [busy, setBusy] = useState(false);
 
   async function handleDelete() {
@@ -1494,11 +2000,18 @@ function DeleteMemberConfirm({ member, onClose, onConfirm }: { member: Member; o
         </DialogTitle>
       </DialogHeader>
       <div className="space-y-3 pt-2 text-sm text-muted-foreground">
-        <p>Are you sure you want to delete <strong>{member.full_name}</strong>?</p>
-        <p>This action is irreversible. It will permanently remove their member profile, attendance checks, and active invoice registry.</p>
+        <p>
+          Are you sure you want to delete <strong>{member.full_name}</strong>?
+        </p>
+        <p>
+          This action is irreversible. It will permanently remove their member
+          profile, attendance checks, and active invoice registry.
+        </p>
       </div>
       <DialogFooter className="pt-4 gap-2">
-        <Button onClick={onClose} variant="outline" disabled={busy}>Cancel</Button>
+        <Button onClick={onClose} variant="outline" disabled={busy}>
+          Cancel
+        </Button>
         <Button onClick={handleDelete} variant="destructive" disabled={busy}>
           {busy ? "Deleting..." : "Delete Permanently"}
         </Button>

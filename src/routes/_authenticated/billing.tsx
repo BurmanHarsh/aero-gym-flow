@@ -419,7 +419,52 @@ function PaymentDialog({ invoice, onClose }: { invoice: Invoice; onClose: () => 
                 <div key={p.id} className="flex items-center justify-between rounded-md border border-border bg-card p-2">
                   <div className="text-sm">
                     <div className="font-medium">{money(p.amount_cents)}</div>
-                    <div className="text-xs text-muted-foreground">{p.method}{p.reference ? ` · ${p.reference}` : ""}</div>
+                    <div className="flex flex-col gap-1.5 mt-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-muted-foreground">Method:</span>
+                        <Select
+                          value={p.method}
+                          onValueChange={async (newMethod) => {
+                            try {
+                              setBusy(true);
+                              const { error } = await supabase
+                                .from("payments")
+                                .update({ method: newMethod })
+                                .eq("id", p.id);
+                              if (error) throw error;
+                              toast.success(`Payment method updated to ${newMethod.toUpperCase()}`);
+                              // Refresh payments list
+                              const { data: payData } = await supabase
+                                .from("payments")
+                                .select("id, amount_cents, method, reference, created_at")
+                                .eq("invoice_id", invoice.id)
+                                .order("created_at", { ascending: false });
+                              setPayments((payData ?? []) as any);
+                            } catch (err: any) {
+                              toast.error(err.message || "Failed to update payment method");
+                            } finally {
+                              setBusy(false);
+                            }
+                          }}
+                          disabled={busy || alreadyReverted}
+                        >
+                          <SelectTrigger className="h-6 w-20 text-[10px] uppercase bg-background border-border">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="cash" className="text-xs uppercase">Cash</SelectItem>
+                            <SelectItem value="upi" className="text-xs uppercase">UPI</SelectItem>
+                            <SelectItem value="card" className="text-xs uppercase">Card</SelectItem>
+                            <SelectItem value="bank" className="text-xs uppercase">Bank</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {p.reference && (
+                        <div className="text-[10px] text-muted-foreground">
+                          Ref: <span className="font-mono">{p.reference}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div>
                     {isStaff && !alreadyReverted && (
