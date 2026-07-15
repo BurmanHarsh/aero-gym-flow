@@ -116,9 +116,8 @@ function Dashboard() {
     const lastRun = localStorage.getItem("tbt_daily_tasks");
     if (lastRun === today) return;
     localStorage.setItem("tbt_daily_tasks", today);
-    // Run silently after a short delay so it doesn't block the dashboard load
-    setTimeout(() => {
-      expireFn().then((res) => {
+    // Run silently so it doesn't block the dashboard render
+    expireFn().then((res) => {
         if (res && res.expired > 0) {
           console.log(`[Auto-Expire] Marked ${res.expired} memberships as expired`);
         }
@@ -128,7 +127,6 @@ function Dashboard() {
           console.log(`[Reminders] Sent ${res.sent} expiry reminder emails`);
         }
       }).catch(() => {});
-    }, 3000);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

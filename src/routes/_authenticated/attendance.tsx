@@ -141,13 +141,18 @@ function AttendancePage() {
       setSearchError("");
       return;
     }
-    const id = setTimeout(async () => {
+    let active = true;
+
+    async function searchMembers() {
       setSearching(true);
       setSearchError("");
       const { data, error } = await supabase
         .from("members").select("id, member_code, full_name, status, phone, email")
         .or(`full_name.ilike.%${term}%,member_code.ilike.%${term}%,phone.ilike.%${term}%`)
         .limit(8);
+      
+      if (!active) return;
+
       if (error) {
         setResults([]);
         setSearchError(error.message);
@@ -156,8 +161,13 @@ function AttendancePage() {
       }
       setResults((data ?? []) as Member[]);
       setSearching(false);
-    }, 220);
-    return () => clearTimeout(id);
+    }
+
+    searchMembers();
+
+    return () => {
+      active = false;
+    };
   }, [q, isStaff]);
 
   async function checkIn(memberId: string, method: "qr" | "biometric" | "manual" = "manual") {

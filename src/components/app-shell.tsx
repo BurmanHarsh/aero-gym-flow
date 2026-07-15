@@ -11,7 +11,6 @@ import {
   Dumbbell,
   Bell,
   Menu,
-  Search,
   Wallet,
   Package,
   Info,
@@ -144,16 +143,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {/* Top bar */}
         <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-border/60 bg-background/70 px-4 backdrop-blur md:px-8">
           <div className="flex flex-1 items-center gap-3">
-            <div className="hidden flex-1 max-w-md md:flex">
-              <div className="relative w-full">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  placeholder="Search members, invoices..."
-                  className="w-full rounded-lg border border-input bg-card/40 py-2 pl-9 pr-3 text-sm outline-none transition focus:border-ring focus:bg-card"
-                />
-              </div>
-            </div>
-            <div className="md:hidden">
+            <div>
               <h1 className="text-base font-semibold capitalize">{(path.split("/")[1] || "dashboard").replace("-", " ")}</h1>
             </div>
           </div>

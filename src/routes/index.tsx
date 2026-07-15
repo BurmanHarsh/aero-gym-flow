@@ -273,9 +273,8 @@ function Landing() {
       setFirstBannerReady(true);
     }
 
-    // Preload remaining banners in background after a short delay
-    const timer = setTimeout(() => {
-      banners.slice(1).forEach((b) => {
+    // Preload remaining banners in background immediately
+    banners.slice(1).forEach((b) => {
         const url = getOptimizedImageUrl(b.image, { width: 1200, quality: 70 });
         if (!preloadedImages.current.has(url)) {
           const img = new Image();
@@ -283,9 +282,6 @@ function Landing() {
           img.onload = () => preloadedImages.current.add(url);
         }
       });
-    }, 200);
-
-    return () => clearTimeout(timer);
   }, [banners]);
 
   const faqs = [

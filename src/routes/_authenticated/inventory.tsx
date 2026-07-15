@@ -1523,13 +1523,9 @@ interface POSCartViewProps {
 
 // Payment Service Abstraction
 class MockPaymentService {
-  static async processPayment(method: string, amountCents: number): Promise<{ success: boolean; transactionId: string }> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const mockTxId = "TXN-PL-" + Math.floor(Math.random() * 89999999 + 10000000);
-        resolve({ success: true, transactionId: mockTxId });
-      }, 1500);
-    });
+  static async processPayment(_method: string, _amountCents: number): Promise<{ success: boolean; transactionId: string }> {
+    const mockTxId = "TXN-PL-" + Math.floor(Math.random() * 89999999 + 10000000);
+    return { success: true, transactionId: mockTxId };
   }
 }
 
@@ -1828,13 +1824,11 @@ function POSCartView({ rows, cart, setCart, onClose, userId }: POSCartViewProps)
       }
 
       // Automatically open print sheet
-      setTimeout(() => {
-        window.print();
-        setCart([]);
-        setAppliedCoupon(null);
-        setCheckoutResult(null);
-        setBuyerEmail("");
-      }, 500);
+      window.print();
+      setCart([]);
+      setAppliedCoupon(null);
+      setCheckoutResult(null);
+      setBuyerEmail("");
 
     } catch (err: any) {
       toast.error(err.message || "Failed completing POS transaction");

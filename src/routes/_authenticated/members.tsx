@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -115,6 +115,7 @@ function MembersPage() {
   const PAGE_SIZE = 100;
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
+  const isFirstRender = useRef(true);
 
   async function load(reset = true) {
     setLoading(true);
@@ -122,12 +123,18 @@ function MembersPage() {
     const from = reset ? 0 : currentPage * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
 
+    let query = supabase
+      .from("members")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (q.trim()) {
+      const cleanQ = q.trim();
+      query = query.or(`full_name.ilike.%${cleanQ}%,phone.ilike.%${cleanQ}%,member_code.ilike.%${cleanQ}%`);
+    }
+
     const [m, p, prof] = await Promise.all([
-      supabase
-        .from("members")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .range(from, to),
+      query.range(from, to),
       supabase.from("membership_plans").select("*").eq("active", true),
       supabase.from("profiles").select("email, avatar_url"),
     ]);
@@ -174,8 +181,13 @@ function MembersPage() {
   }
 
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      load(true);
+      return;
+    }
     load(true);
-  }, []);
+  }, [q]);
 
   const activeCount = useMemo(
     () => rows.filter((r) => r.status === "active").length,
@@ -323,7 +335,7 @@ function MembersPage() {
           ))}
         </div>
 
-        {hasMore && !loading && !q && (
+        {hasMore && !loading && (
           <div className="flex justify-center border-t border-border p-4">
             <Button
               variant="outline"
