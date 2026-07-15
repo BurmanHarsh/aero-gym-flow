@@ -122,6 +122,8 @@ function MembersPage() {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const isFirstRender = useRef(true);
+  const cachedPlans = useRef<Plan[] | null>(null);
+  const cachedProfiles = useRef<Map<string, string> | null>(null);
 
   async function load(reset = true) {
     setLoading(true);
@@ -153,10 +155,17 @@ function MembersPage() {
     const todayStr = new Date().toISOString().slice(0, 10);
     const sevenDaysLater = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
 
+    // Only fetch plans and profiles on the very first load — they rarely change
+    const needsStaticData = !cachedPlans.current || !cachedProfiles.current;
+
     const [m, p, prof, counts] = await Promise.all([
       query.range(from, to),
-      supabase.from("membership_plans").select("*").eq("active", true),
-      supabase.from("profiles").select("email, avatar_url"),
+      needsStaticData
+        ? supabase.from("membership_plans").select("*").eq("active", true)
+        : Promise.resolve({ data: null, error: null }),
+      needsStaticData
+        ? supabase.from("profiles").select("email, avatar_url")
+        : Promise.resolve({ data: null, error: null }),
       Promise.all([
         supabase.from("members").select("*", { count: "exact", head: true }),
         supabase.from("members").select("*", { count: "exact", head: true }).eq("status", "active"),
@@ -178,12 +187,24 @@ function MembersPage() {
     setExpiringCount(expiring);
     setRealInactiveCount(inactive);
 
-    const profilesMap = new Map<string, string>();
-    (prof.data ?? []).forEach((pr) => {
-      if (pr.email && pr.avatar_url) {
-        profilesMap.set(pr.email.toLowerCase(), pr.avatar_url);
-      }
-    });
+    const plansResult = p as any;
+    const profilesResult = prof as any;
+
+    // Cache plans and profiles on first fetch
+    if (plansResult.data) {
+      cachedPlans.current = (plansResult.data ?? []) as Plan[];
+    }
+    if (profilesResult.data) {
+      const profilesMap = new Map<string, string>();
+      (profilesResult.data ?? []).forEach((pr: any) => {
+        if (pr.email && pr.avatar_url) {
+          profilesMap.set(pr.email.toLowerCase(), pr.avatar_url);
+        }
+      });
+      cachedProfiles.current = profilesMap;
+    }
+
+    const profilesMap = cachedProfiles.current ?? new Map<string, string>();
 
     const merged = ((m.data ?? []) as Member[]).map((member) => {
       const emailKey = member.email?.toLowerCase();
@@ -207,8 +228,12 @@ function MembersPage() {
     }
 
     setHasMore((m.data ?? []).length === PAGE_SIZE);
-    setPlans((p.data ?? []) as Plan[]);
-    setPlanError(p.error?.message ?? "");
+    if (plansResult.data) {
+      setPlans((plansResult.data ?? []) as Plan[]);
+      setPlanError(plansResult.error ? plansResult.error.message : "");
+    } else if (cachedPlans.current) {
+      setPlans(cachedPlans.current);
+    }
 
     setSelectedMember((current) => {
       if (!current) return null;

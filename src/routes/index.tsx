@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import useEmblaCarousel from "embla-carousel-react";
 import { useServerFn } from "@tanstack/react-start";
@@ -119,11 +119,8 @@ function Landing() {
   const [plansLoading, setPlansLoading] = useState(true);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
-  // Slider & Gallery States
   const [banners, setBanners] = useState<Banner[]>([]);
   const [bannersLoading, setBannersLoading] = useState(true);
-  const [firstBannerReady, setFirstBannerReady] = useState(false);
-  const preloadedImages = useRef<Set<string>>(new Set());
   const [photos, setPhotos] = useState<string[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
 
@@ -252,37 +249,6 @@ function Landing() {
     loadLandingCustomizations();
   }, []);
 
-  // Preload banner images eagerly once URLs are available
-  useEffect(() => {
-    if (banners.length === 0) return;
-
-    // Preload the first banner image immediately and mark ready
-    const firstUrl = getOptimizedImageUrl(banners[0].image, {
-      width: 1200,
-      quality: 70,
-    });
-    if (!preloadedImages.current.has(firstUrl)) {
-      const img = new Image();
-      img.src = firstUrl;
-      img.onload = () => {
-        preloadedImages.current.add(firstUrl);
-        setFirstBannerReady(true);
-      };
-      img.onerror = () => setFirstBannerReady(true); // show even on error
-    } else {
-      setFirstBannerReady(true);
-    }
-
-    // Preload remaining banners in background immediately
-    banners.slice(1).forEach((b) => {
-        const url = getOptimizedImageUrl(b.image, { width: 1200, quality: 70 });
-        if (!preloadedImages.current.has(url)) {
-          const img = new Image();
-          img.src = url;
-          img.onload = () => preloadedImages.current.add(url);
-        }
-      });
-  }, [banners]);
 
   const faqs = [
     {
@@ -359,7 +325,7 @@ function Landing() {
             <div className="h-8 w-8 rounded-full border-2 border-primary/40 border-t-primary animate-spin" />
           </div>
         </section>
-      ) : banners.length > 0 && firstBannerReady ? (
+      ) : banners.length > 0 ? (
         <section className="relative z-10 w-full h-[180px] sm:h-[280px] md:h-[400px] lg:h-[60vh] lg:min-h-[320px] lg:max-h-[640px] bg-black">
           <div ref={emblaRef} className="h-full overflow-hidden">
             <div className="flex h-full">
