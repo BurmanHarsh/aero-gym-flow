@@ -105,7 +105,13 @@ function MembersPage() {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
-  const [activeTab, setActiveTab] = useState<"active" | "inactive">("active");
+  const [activeTab, setActiveTab] = useState<"active" | "expiring" | "inactive">("active");
+
+  // Real database counts
+  const [totalCount, setTotalCount] = useState(0);
+  const [realActiveCount, setRealActiveCount] = useState(0);
+  const [expiringCount, setExpiringCount] = useState(0);
+  const [realInactiveCount, setRealInactiveCount] = useState(0);
 
   // Profile Drawer / Edit Dialog / Delete Dialog states
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
@@ -123,21 +129,54 @@ function MembersPage() {
     const from = reset ? 0 : currentPage * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
 
-    let query = supabase
-      .from("members")
-      .select("*")
-      .order("created_at", { ascending: false });
+    let query = supabase.from("members").select("*");
+
+    if (activeTab === "active") {
+      query = query.eq("status", "active").order("created_at", { ascending: false });
+    } else if (activeTab === "expiring") {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const sevenDaysLater = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+      query = query
+        .eq("status", "active")
+        .gte("expires_at", todayStr)
+        .lte("expires_at", sevenDaysLater)
+        .order("expires_at", { ascending: true });
+    } else {
+      query = query.neq("status", "active").order("created_at", { ascending: false });
+    }
 
     if (q.trim()) {
       const cleanQ = q.trim();
-      query = query.or(`full_name.ilike.%${cleanQ}%,phone.ilike.%${cleanQ}%,member_code.ilike.%${cleanQ}%`);
+      query = query.or(`full_name.ilike.%${cleanQ}%,phone.ilike.%${cleanQ}%,member_code.ilike.%${cleanQ}%,email.ilike.%${cleanQ}%`);
     }
 
-    const [m, p, prof] = await Promise.all([
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const sevenDaysLater = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+
+    const [m, p, prof, counts] = await Promise.all([
       query.range(from, to),
       supabase.from("membership_plans").select("*").eq("active", true),
       supabase.from("profiles").select("email, avatar_url"),
+      Promise.all([
+        supabase.from("members").select("*", { count: "exact", head: true }),
+        supabase.from("members").select("*", { count: "exact", head: true }).eq("status", "active"),
+        supabase.from("members")
+          .select("*", { count: "exact", head: true })
+          .eq("status", "active")
+          .gte("expires_at", todayStr)
+          .lte("expires_at", sevenDaysLater),
+      ]),
     ]);
+
+    const total = counts[0].count ?? 0;
+    const active = counts[1].count ?? 0;
+    const expiring = counts[2].count ?? 0;
+    const inactive = total - active;
+
+    setTotalCount(total);
+    setRealActiveCount(active);
+    setExpiringCount(expiring);
+    setRealInactiveCount(inactive);
 
     const profilesMap = new Map<string, string>();
     (prof.data ?? []).forEach((pr) => {
@@ -187,16 +226,9 @@ function MembersPage() {
       return;
     }
     load(true);
-  }, [q]);
+  }, [q, activeTab]);
 
-  const activeCount = useMemo(
-    () => rows.filter((r) => r.status === "active").length,
-    [rows],
-  );
-  const inactiveCount = useMemo(
-    () => rows.filter((r) => r.status !== "active").length,
-    [rows],
-  );
+
 
   const filtered = useMemo(() => {
     const t = q.toLowerCase();
@@ -205,9 +237,14 @@ function MembersPage() {
         !t ||
         r.full_name.toLowerCase().includes(t) ||
         r.phone.includes(t) ||
-        r.member_code.toLowerCase().includes(t);
+        r.member_code.toLowerCase().includes(t) ||
+        (r.email && r.email.toLowerCase().includes(t));
       const matchesTab =
-        activeTab === "active" ? r.status === "active" : r.status !== "active";
+        activeTab === "active"
+          ? r.status === "active"
+          : activeTab === "expiring"
+            ? r.status === "active"
+            : r.status !== "active";
       return matchesSearch && matchesTab;
     });
   }, [rows, q, activeTab]);
@@ -228,12 +265,16 @@ function MembersPage() {
           <p className="text-sm font-medium">
             {activeTab === "active"
               ? "No active members yet"
-              : "No longer or removed members found"}
+              : activeTab === "expiring"
+                ? "No members expiring soon"
+                : "No longer or removed members found"}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             {activeTab === "active"
               ? "Add a member or adjust your search query."
-              : "Removed, expired, frozen, or cancelled member profiles will appear here."}
+              : activeTab === "expiring"
+                ? "All active members have plenty of time left on their memberships."
+                : "Removed, expired, frozen, or cancelled member profiles will appear here."}
           </p>
         </div>
       );
@@ -359,8 +400,7 @@ function MembersPage() {
             Members
           </h1>
           <p className="text-sm text-muted-foreground">
-            {rows.length}
-            {hasMore ? "+" : ""} total · {activeCount} active
+            {totalCount} total · {realActiveCount} active
           </p>
         </div>
         {isStaff && (
@@ -401,19 +441,28 @@ function MembersPage() {
 
         <Tabs
           value={activeTab}
-          onValueChange={(val) => setActiveTab(val as "active" | "inactive")}
+          onValueChange={(val) => setActiveTab(val as "active" | "expiring" | "inactive")}
           className="w-full space-y-4"
         >
           <TabsList className="bg-card border border-border/80 p-1">
             <TabsTrigger value="active" className="cursor-pointer">
-              Active Member ({activeCount})
+              Active Member ({realActiveCount})
+            </TabsTrigger>
+            <TabsTrigger value="expiring" className="cursor-pointer">
+              Expiring Soon ({expiringCount})
             </TabsTrigger>
             <TabsTrigger value="inactive" className="cursor-pointer">
-              No Longer / Removed ({inactiveCount})
+              No Longer / Removed ({realInactiveCount})
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="active" className="mt-0 outline-none">
+            <div className="overflow-hidden rounded-2xl border border-border bg-card">
+              {renderMemberList()}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="expiring" className="mt-0 outline-none">
             <div className="overflow-hidden rounded-2xl border border-border bg-card">
               {renderMemberList()}
             </div>
@@ -1611,7 +1660,7 @@ function EditMemberDialog({
   const [gender, setGender] = useState(member.gender ?? "male");
   const [dob, setDob] = useState(member.date_of_birth ?? "");
   const [address, setAddress] = useState(member.address ?? "");
-  const [planId, setPlanId] = useState(member.plan_id ?? "");
+  const [planId, setPlanId] = useState(member.plan_id ?? "none");
   const [status, setStatus] = useState(member.status);
   const [emergencyContact, setEmergencyContact] = useState(
     member.emergency_contact ?? "",
@@ -1628,15 +1677,24 @@ function EditMemberDialog({
   );
 
   useEffect(() => {
+    if (planId === "none") {
+      setExpiresAt("");
+      return;
+    }
     const plan = plans.find((p) => p.id === planId);
     if (plan && joinedAt) {
-      const expDate = new Date(
-        new Date(joinedAt).getTime() + plan.duration_days * 86400000,
-      )
-        .toISOString()
-        .slice(0, 10);
-      setExpiresAt(expDate);
-    } else if (!planId) {
+      const parts = joinedAt.split("-").map(Number);
+      if (parts.length === 3 && !parts.some(isNaN)) {
+        const [y, m, d] = parts;
+        const dateObj = new Date(y, m - 1, d);
+        dateObj.setDate(dateObj.getDate() + plan.duration_days);
+        
+        const year = dateObj.getFullYear();
+        const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+        const day = String(dateObj.getDate()).padStart(2, "0");
+        setExpiresAt(`${year}-${month}-${day}`);
+      }
+    } else {
       setExpiresAt("");
     }
   }, [joinedAt, planId, plans]);
@@ -1735,10 +1793,14 @@ function EditMemberDialog({
     checkChange("Joining Date", member.joined_at, joinedAt);
     checkChange("Expiry Date", member.expires_at, expiresAt);
 
-    if (member.plan_id !== planId) {
+    const updatedPlanId = planId === "none" ? null : planId;
+
+    if (member.plan_id !== updatedPlanId) {
       const oldPlan =
         plans.find((p) => p.id === member.plan_id)?.name ?? "None";
-      const newPlan = plans.find((p) => p.id === planId)?.name ?? "None";
+      const newPlan = updatedPlanId
+        ? (plans.find((p) => p.id === updatedPlanId)?.name ?? "None")
+        : "None";
       changes.push({
         field: "Membership Plan",
         oldValue: oldPlan,
@@ -1755,7 +1817,7 @@ function EditMemberDialog({
         gender,
         date_of_birth: dob || null,
         address: address.trim() || null,
-        plan_id: planId || null,
+        plan_id: updatedPlanId,
         status,
         emergency_contact: emergencyContact.trim() || null,
         medical_info: medicalInfo.trim() || null,
@@ -1783,7 +1845,7 @@ function EditMemberDialog({
         full_name: fullName.trim(),
         phone: cleanPhone,
         email: email.trim() || null,
-        plan_id: planId || null,
+        plan_id: updatedPlanId,
         status,
         joined_at: joinedAt,
         expires_at: expiresAt || null,
@@ -1874,6 +1936,7 @@ function EditMemberDialog({
                 <SelectValue placeholder="Select plan" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="none">None / No Plan</SelectItem>
                 {plans.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
                     {p.name} - {p.duration_days}d

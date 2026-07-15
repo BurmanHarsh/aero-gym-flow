@@ -148,7 +148,7 @@ function AttendancePage() {
       setSearchError("");
       const { data, error } = await supabase
         .from("members").select("id, member_code, full_name, status, phone, email")
-        .or(`full_name.ilike.%${term}%,member_code.ilike.%${term}%,phone.ilike.%${term}%`)
+        .or(`full_name.ilike.%${term}%,member_code.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%`)
         .limit(8);
       
       if (!active) return;

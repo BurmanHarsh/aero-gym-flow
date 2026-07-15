@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, useEffect } from "react";
 import { getAttendanceTrend, getDashboardStats, getRevenueTrend } from "@/lib/aerogym/analytics.functions";
-import { autoExpireMemberships, sendExpiryReminders } from "@/lib/aerogym/gym.functions";
+import { autoExpireMemberships, sendExpiryReminders, createExpiryNotifications } from "@/lib/aerogym/gym.functions";
 import { sendMemberSupportEmail } from "@/lib/aerogym/email.functions";
 import { StatCard } from "@/components/stat-card";
 import { Button } from "@/components/ui/button";
@@ -106,6 +106,7 @@ function Dashboard() {
   const att = useServerFn(getAttendanceTrend);
   const expireFn = useServerFn(autoExpireMemberships);
   const reminderFn = useServerFn(sendExpiryReminders);
+  const expiryNotifFn = useServerFn(createExpiryNotifications);
   const s = useQuery({ queryKey: ["dashboard-stats"], queryFn: () => stats() });
   const a = useQuery({ queryKey: ["attendance-14"], queryFn: () => att() });
 
@@ -125,6 +126,11 @@ function Dashboard() {
       reminderFn().then((res) => {
         if (res && res.sent > 0) {
           console.log(`[Reminders] Sent ${res.sent} expiry reminder emails`);
+        }
+      }).catch(() => {});
+      expiryNotifFn().then((res) => {
+        if (res && res.created > 0) {
+          console.log(`[Expiry-Notifs] Created ${res.created} system notifications`);
         }
       }).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps

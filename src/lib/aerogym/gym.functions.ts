@@ -105,3 +105,58 @@ export const sendExpiryReminders = createServerFn({ method: "POST" })
 
     return { sent, total: expiring.length };
   });
+
+export const createExpiryNotifications = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase } = context;
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const sevenDaysLater = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+
+    // 1. Find all active members expiring in the next 7 days
+    const { data: expiring, error: err } = await supabase
+      .from("members")
+      .select("id, full_name, member_code, expires_at")
+      .eq("status", "active")
+      .gte("expires_at", todayStr)
+      .lte("expires_at", sevenDaysLater);
+
+    if (err) throw new Error(err.message);
+    if (!expiring || expiring.length === 0) return { created: 0 };
+
+    // 2. Fetch notifications created today to avoid duplicates
+    const { data: existingNotifs, error: notifErr } = await supabase
+      .from("notifications")
+      .select("title")
+      .gte("created_at", todayStr + "T00:00:00Z");
+
+    if (notifErr) throw new Error(notifErr.message);
+
+    const existingTitles = new Set((existingNotifs ?? []).map((n) => n.title));
+    let created = 0;
+
+    for (const member of expiring) {
+      const title = `Membership Expiring Soon: ${member.full_name}`;
+      
+      // If already notified today, skip
+      if (existingTitles.has(title)) continue;
+
+      const daysLeft = Math.ceil(
+        (new Date(member.expires_at!).getTime() - new Date(todayStr).getTime()) / 86400000
+      );
+
+      const body = `Membership for ${member.full_name} (${member.member_code}) expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"} (on ${member.expires_at}).`;
+
+      const { error: insertErr } = await supabase.from("notifications").insert({
+        title,
+        body,
+        kind: "warning",
+        link: "/members",
+        user_id: null,
+      });
+
+      if (!insertErr) created++;
+    }
+
+    return { created };
+  });
