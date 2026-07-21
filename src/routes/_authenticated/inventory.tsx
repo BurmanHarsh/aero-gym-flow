@@ -1554,12 +1554,12 @@ function POSCartView({ rows, cart, setCart, onClose, userId }: POSCartViewProps)
 
   const sendSaleEmailFn = useServerFn(sendInventorySaleEmail);
 
-  // Keep barcode scanner focused
+  // Keep barcode scanner focused (without auto-scrolling viewport)
   useEffect(() => {
-    scanInputRef.current?.focus();
+    scanInputRef.current?.focus({ preventScroll: true });
     const interval = setInterval(() => {
       if (document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA") {
-        scanInputRef.current?.focus();
+        scanInputRef.current?.focus({ preventScroll: true });
       }
     }, 2000);
     return () => clearInterval(interval);
@@ -1800,7 +1800,7 @@ function POSCartView({ rows, cart, setCart, onClose, userId }: POSCartViewProps)
       setCheckoutResult(result);
       toast.success(`Checkout complete! Invoice: ${result.invoice_number}`);
 
-      // Try sending receipt email
+      // Send receipt email
       try {
         const matched = allProfiles.find(p => p.email.toLowerCase() === emailToUse.toLowerCase());
         const customerName = matched?.full_name || "Customer";
@@ -1819,16 +1819,20 @@ function POSCartView({ rows, cart, setCart, onClose, userId }: POSCartViewProps)
             discountAmount: appliedCoupon ? money(discountCents) : null
           }
         });
-      } catch (emailErr) {
+        toast.success(`Receipt emailed to ${emailToUse}`);
+      } catch (emailErr: any) {
         console.warn("Failed sending receipt email", emailErr);
+        toast.info(`Note: Could not send email receipt (${emailErr?.message || "Check RESEND_API_KEY"})`);
       }
 
-      // Automatically open print sheet
-      window.print();
-      setCart([]);
-      setAppliedCoupon(null);
-      setCheckoutResult(null);
-      setBuyerEmail("");
+      // Automatically open print sheet after state renders
+      setTimeout(() => {
+        window.print();
+        setCart([]);
+        setAppliedCoupon(null);
+        setCheckoutResult(null);
+        setBuyerEmail("");
+      }, 100);
 
     } catch (err: any) {
       toast.error(err.message || "Failed completing POS transaction");
@@ -2014,6 +2018,12 @@ function POSCartView({ rows, cart, setCart, onClose, userId }: POSCartViewProps)
                 }}
                 onFocus={() => setShowEmailSuggestions(true)}
                 onBlur={() => setTimeout(() => setShowEmailSuggestions(false), 250)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    setShowEmailSuggestions(false);
+                  }
+                }}
                 placeholder="search member email..."
                 className="bg-card h-8 text-xs font-medium"
                 disabled={busy}
@@ -2027,7 +2037,8 @@ function POSCartView({ rows, cart, setCart, onClose, userId }: POSCartViewProps)
                       {filtered.map(p => (
                         <li
                           key={p.email}
-                          onMouseDown={() => {
+                          onMouseDown={(e) => {
+                            e.preventDefault();
                             setBuyerEmail(p.email);
                             setShowEmailSuggestions(false);
                           }}
@@ -2048,11 +2059,18 @@ function POSCartView({ rows, cart, setCart, onClose, userId }: POSCartViewProps)
               <Input
                 value={couponCode}
                 onChange={(e) => setCouponCode(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    applyCoupon();
+                  }
+                }}
                 placeholder="coupon (optional)"
                 className="bg-card uppercase font-mono h-8 text-xs"
                 disabled={busy}
               />
               <Button
+                type="button"
                 variant="outline"
                 onClick={applyCoupon}
                 disabled={busy || !couponCode}

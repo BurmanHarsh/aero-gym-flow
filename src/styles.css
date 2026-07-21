@@ -203,3 +203,37 @@
     opacity: 1;
   }
 }
+
+/* ============================================
+   Thermal Receipt Print Isolation Rules
+   ============================================ */
+@media print {
+  @page {
+    margin: 0;
+    size: auto;
+  }
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  /* Hide all dashboard UI, navigation, sidebars, and app layout */
+  body * {
+    visibility: hidden !important;
+  }
+  /* Show ONLY the POS thermal receipt slip */
+  #thermal-receipt, #thermal-receipt * {
+    visibility: visible !important;
+  }
+  #thermal-receipt {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 80mm !important;
+    display: block !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 12px !important;
+    margin: 0 !important;
+  }
+}
+
