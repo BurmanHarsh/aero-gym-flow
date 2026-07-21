@@ -209,17 +209,73 @@ function InventoryPage() {
 
   async function loadSales() {
     setSalesLoading(true);
-    const { data, error } = await supabase
-      .from("inventory_sales")
-      .select("*, profiles:profiles(full_name, email)")
-      .order("sold_at", { ascending: false });
+    try {
+      // 1. Try fetching from pos_sales table (POS system)
+      const { data: posData, error: posError } = await (supabase as any)
+        .from("pos_sales")
+        .select(`
+          id,
+          invoice_number,
+          sold_at,
+          subtotal_cents,
+          discount_cents,
+          cgst_cents,
+          sgst_cents,
+          total_gst_cents,
+          grand_total_cents,
+          payment_method,
+          transaction_id,
+          profiles:sold_by (full_name, email),
+          pos_sale_items (*)
+        `)
+        .order("sold_at", { ascending: false });
 
-    if (error) {
-      toast.error(error.message);
-    } else {
-      setSales((data ?? []) as any[]);
+      if (!posError && posData && posData.length > 0) {
+        const mappedSales = posData.flatMap((sale: any) => {
+          if (sale.pos_sale_items && sale.pos_sale_items.length > 0) {
+            return sale.pos_sale_items.map((item: any) => ({
+              id: sale.id + "_" + item.id,
+              sale_id: sale.id,
+              invoice_number: sale.invoice_number,
+              item_id: item.item_id,
+              item_name: item.item_name,
+              quantity: item.quantity,
+              sale_price_cents: item.selling_price_cents ?? 0,
+              total_amount_cents: item.total_amount_cents ?? ((item.selling_price_cents ?? 0) * item.quantity),
+              sold_at: sale.sold_at,
+              sold_by: sale.sold_by,
+              payment_method: sale.payment_method,
+              buyer_email: null,
+              profiles: sale.profiles
+            }));
+          }
+          return [];
+        });
+
+        if (mappedSales.length > 0) {
+          setSales(mappedSales);
+          setSalesLoading(false);
+          return;
+        }
+      }
+
+      // 2. Fallback to legacy inventory_sales table if present
+      const { data: legacyData, error: legacyError } = await (supabase as any)
+        .from("inventory_sales")
+        .select("*, profiles:profiles(full_name, email)")
+        .order("sold_at", { ascending: false });
+
+      if (!legacyError && legacyData) {
+        setSales(legacyData as any[]);
+      } else {
+        setSales([]);
+      }
+    } catch (err) {
+      console.warn("Failed loading sales history", err);
+      setSales([]);
+    } finally {
+      setSalesLoading(false);
     }
-    setSalesLoading(false);
   }
 
   useEffect(() => {
