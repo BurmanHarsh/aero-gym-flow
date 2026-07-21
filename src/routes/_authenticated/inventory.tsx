@@ -1825,14 +1825,91 @@ function POSCartView({ rows, cart, setCart, onClose, userId }: POSCartViewProps)
         toast.info(`Note: Could not send email receipt (${emailErr?.message || "Check RESEND_API_KEY"})`);
       }
 
-      // Automatically open print sheet after state renders
+      // Print receipt via isolated iframe
+      const printThermalReceipt = () => {
+        const elem = document.getElementById("thermal-receipt");
+        if (!elem) return;
+
+        const iframe = document.createElement("iframe");
+        iframe.style.position = "fixed";
+        iframe.style.right = "0";
+        iframe.style.bottom = "0";
+        iframe.style.width = "0px";
+        iframe.style.height = "0px";
+        iframe.style.border = "none";
+        document.body.appendChild(iframe);
+
+        const doc = iframe.contentWindow?.document;
+        if (!doc) return;
+
+        doc.open();
+        doc.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Thermal Receipt</title>
+              <style>
+                @page { margin: 0; size: 80mm auto; }
+                body {
+                  font-family: monospace;
+                  font-size: 11px;
+                  line-height: 1.3;
+                  margin: 0;
+                  padding: 12px;
+                  color: #000;
+                  background: #fff;
+                  width: 80mm;
+                }
+                * { box-sizing: border-box; }
+                .text-center { text-align: center; }
+                .text-right { text-align: right; }
+                .font-bold { font-weight: bold; }
+                .border-b { border-bottom: 1px dashed #000; }
+                .border-t { border-top: 1px dashed #000; }
+                .my-2 { margin-top: 6px; margin-bottom: 6px; }
+                .pt-1 { padding-top: 4px; }
+                .pt-2 { padding-top: 6px; }
+                .mt-2 { margin-top: 6px; }
+                .mt-4 { margin-top: 12px; }
+                .space-y-1 > * + * { margin-top: 4px; }
+                .space-y-0.5 > * + * { margin-top: 2px; }
+                .w-full { width: 100%; }
+                .uppercase { text-transform: uppercase; }
+                .text-xs { font-size: 11px; }
+                .text-sm { font-size: 12px; }
+                .text-\\[10px\\] { font-size: 10px; }
+                .text-\\[9px\\] { font-size: 9px; }
+                .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+                table { width: 100%; border-collapse: collapse; text-align: left; }
+                th, td { padding: 3px 0; }
+              </style>
+            </head>
+            <body>
+              ${elem.innerHTML}
+            </body>
+          </html>
+        `);
+        doc.close();
+
+        setTimeout(() => {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+          setTimeout(() => {
+            if (document.body.contains(iframe)) {
+              document.body.removeChild(iframe);
+            }
+          }, 1000);
+        }, 150);
+      };
+
+      // Automatically open isolated print sheet after state renders
       setTimeout(() => {
-        window.print();
+        printThermalReceipt();
         setCart([]);
         setAppliedCoupon(null);
         setCheckoutResult(null);
         setBuyerEmail("");
-      }, 100);
+      }, 150);
 
     } catch (err: any) {
       toast.error(err.message || "Failed completing POS transaction");
