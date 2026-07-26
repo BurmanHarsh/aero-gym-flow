@@ -131,6 +131,7 @@ function MembersPage() {
     const from = reset ? 0 : currentPage * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
 
+    const isFrontDesk = me.roles.includes("front_desk") && !me.isAdmin;
     let query = supabase.from("members").select("*");
 
     if (activeTab === "active") {
@@ -150,6 +151,8 @@ function MembersPage() {
     if (q.trim()) {
       const cleanQ = q.trim();
       query = query.or(`full_name.ilike.%${cleanQ}%,phone.ilike.%${cleanQ}%,member_code.ilike.%${cleanQ}%,email.ilike.%${cleanQ}%`);
+    } else if (isFrontDesk) {
+      query = query.limit(10);
     }
 
     const todayStr = new Date().toISOString().slice(0, 10);
@@ -158,8 +161,10 @@ function MembersPage() {
     // Only fetch plans and profiles on the very first load — they rarely change
     const needsStaticData = !cachedPlans.current || !cachedProfiles.current;
 
+    const queryRange = (isFrontDesk && !q.trim()) ? query.range(0, 9) : query.range(from, to);
+
     const [m, p, prof, counts] = await Promise.all([
-      query.range(from, to),
+      queryRange,
       needsStaticData
         ? supabase.from("membership_plans").select("*").eq("active", true)
         : Promise.resolve({ data: null, error: null }),
@@ -227,7 +232,11 @@ function MembersPage() {
       setPage(currentPage + 1);
     }
 
-    setHasMore((m.data ?? []).length === PAGE_SIZE);
+    if (isFrontDesk && !q.trim()) {
+      setHasMore(false);
+    } else {
+      setHasMore((m.data ?? []).length === PAGE_SIZE);
+    }
     if (plansResult.data) {
       setPlans((plansResult.data ?? []) as Plan[]);
       setPlanError(plansResult.error ? plansResult.error.message : "");
@@ -425,7 +434,11 @@ function MembersPage() {
             Members
           </h1>
           <p className="text-sm text-muted-foreground">
-            {totalCount} total · {realActiveCount} active
+            {me.roles.includes("front_desk") && !me.isAdmin
+              ? q.trim()
+                ? `Search results for "${q}"`
+                : "Recent 10 members added"
+              : `${totalCount} total · ${realActiveCount} active`}
           </p>
         </div>
         {isStaff && (

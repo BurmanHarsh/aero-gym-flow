@@ -95,7 +95,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           collapsed ? "w-18" : "w-64"
         )}
       >
-        <Link to="/dashboard" className="flex h-16 items-center gap-3 px-4">
+        <Link to="/" className="flex h-16 items-center gap-3 px-4">
           <img
             src="/logo.png"
             alt="Tank by Tapan Logo"

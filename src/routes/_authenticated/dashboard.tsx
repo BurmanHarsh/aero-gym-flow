@@ -564,8 +564,7 @@ function FrontDeskDashboard({
     <div className="space-y-8">
       <DashboardHeader title="Front desk workspace" subtitle="Today's check-ins, renewals, and payment tasks." />
 
-      <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <StatCard label="Total members" value={d?.totalMembers ?? "-"} icon={Users} tone="primary" hint={`${d?.activeMembers ?? 0} active`} />
+      <section className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-3">
         <StatCard label="Check-ins today" value={d?.checkInsToday ?? "-"} icon={QrCode} tone="info" />
         <StatCard label="Expiring soon" value={d?.expiringSoon ?? "-"} icon={CalendarClock} tone="warning" hint="Renewal calls" />
         <StatCard label="Pending invoices" value={d?.pendingInvoices ?? "-"} icon={Receipt} tone="warning" />

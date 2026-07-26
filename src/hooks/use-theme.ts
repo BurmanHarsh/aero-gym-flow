@@ -13,7 +13,10 @@ function applyTheme(t: Theme) {
 }
 
 export function useTheme() {
-  const [theme, setThemeState] = useState<Theme>("dark");
+  const [theme, setThemeState] = useState<Theme>(() => {
+    if (typeof window === "undefined") return "dark";
+    return (localStorage.getItem(KEY) as Theme | null) ?? "dark";
+  });
 
   useEffect(() => {
     const stored = (localStorage.getItem(KEY) as Theme | null) ?? "dark";

@@ -116,7 +116,7 @@ export const createExpiryNotifications = createServerFn({ method: "POST" })
     // 1. Find all active members expiring in the next 7 days
     const { data: expiring, error: err } = await supabase
       .from("members")
-      .select("id, full_name, member_code, expires_at")
+      .select("id, full_name, member_code, expires_at, email")
       .eq("status", "active")
       .gte("expires_at", todayStr)
       .lte("expires_at", sevenDaysLater);
@@ -124,35 +124,54 @@ export const createExpiryNotifications = createServerFn({ method: "POST" })
     if (err) throw new Error(err.message);
     if (!expiring || expiring.length === 0) return { created: 0 };
 
+    // Fetch profiles map (email -> profile id) to find target user_id for members
+    const emails = expiring.map((m) => m.email?.toLowerCase()).filter(Boolean) as string[];
+    const profileMap = new Map<string, string>();
+    if (emails.length > 0) {
+      const { data: profs } = await supabase
+        .from("profiles")
+        .select("id, email");
+      (profs ?? []).forEach((p) => {
+        if (p.email) profileMap.set(p.email.toLowerCase(), p.id);
+      });
+    }
+
     // 2. Fetch notifications created today to avoid duplicates
     const { data: existingNotifs, error: notifErr } = await supabase
       .from("notifications")
-      .select("title")
+      .select("title, user_id")
       .gte("created_at", todayStr + "T00:00:00Z");
 
     if (notifErr) throw new Error(notifErr.message);
 
-    const existingTitles = new Set((existingNotifs ?? []).map((n) => n.title));
+    const existingKeys = new Set((existingNotifs ?? []).map((n) => `${n.user_id}:${n.title}`));
     let created = 0;
 
     for (const member of expiring) {
-      const title = `Membership Expiring Soon: ${member.full_name}`;
+      const memberEmailKey = member.email?.toLowerCase();
+      const targetUserId = memberEmailKey ? profileMap.get(memberEmailKey) : null;
       
+      // If we cannot target a specific member user, do NOT broadcast globally to avoid exposing expiry to everyone
+      if (!targetUserId) continue;
+
+      const title = `Your Membership is Expiring Soon`;
+      const key = `${targetUserId}:${title}`;
+
       // If already notified today, skip
-      if (existingTitles.has(title)) continue;
+      if (existingKeys.has(key)) continue;
 
       const daysLeft = Math.ceil(
         (new Date(member.expires_at!).getTime() - new Date(todayStr).getTime()) / 86400000
       );
 
-      const body = `Membership for ${member.full_name} (${member.member_code}) expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"} (on ${member.expires_at}).`;
+      const body = `Hi ${member.full_name}, your membership (${member.member_code}) expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"} (on ${member.expires_at}). Please renew at the front desk.`;
 
       const { error: insertErr } = await supabase.from("notifications").insert({
         title,
         body,
         kind: "warning",
         link: "/members",
-        user_id: null,
+        user_id: targetUserId,
       });
 
       if (!insertErr) created++;

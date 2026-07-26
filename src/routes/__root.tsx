@@ -84,8 +84,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className="dark">
-      <head><HeadContent /></head>
+    <html lang="en">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem("tank-theme")||"dark";var d=t==="dark"||(t==="system"&&window.matchMedia("(prefers-color-scheme: dark)").matches);if(d){document.documentElement.classList.add("dark");}else{document.documentElement.classList.remove("dark");}}catch(e){}})();`,
+          }}
+        />
+        <HeadContent />
+      </head>
       <body>
         {children}
         <Scripts />
@@ -96,7 +103,7 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function ThemeBoot() {
   useEffect(() => {
-    const stored = (localStorage.getItem("aerogym-theme") as "light" | "dark" | "system" | null) ?? "dark";
+    const stored = (localStorage.getItem("tank-theme") as "light" | "dark" | "system" | null) ?? "dark";
     const isDark =
       stored === "dark" ||
       (stored === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);

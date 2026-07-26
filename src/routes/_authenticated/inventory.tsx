@@ -325,14 +325,16 @@ function InventoryPage() {
                 Back to Catalog
               </Button>
             )}
-            <Dialog open={addOpen} onOpenChange={setAddOpen}>
-              <DialogTrigger asChild>
-                <Button className="gradient-primary text-primary-foreground shadow-glow">
-                  <Plus className="mr-1 h-4 w-4" /> Add Item
-                </Button>
-              </DialogTrigger>
-              <AddItemDialog isAdmin={me.isAdmin} onClose={() => { setAddOpen(false); load(); }} />
-            </Dialog>
+            {me.isAdmin && (
+              <Dialog open={addOpen} onOpenChange={setAddOpen}>
+                <DialogTrigger asChild>
+                  <Button className="gradient-primary text-primary-foreground shadow-glow">
+                    <Plus className="mr-1 h-4 w-4" /> Add Item
+                  </Button>
+                </DialogTrigger>
+                <AddItemDialog isAdmin={me.isAdmin} onClose={() => { setAddOpen(false); load(); }} />
+              </Dialog>
+            )}
           </div>
         )}
       </header>
@@ -626,7 +628,7 @@ function InventoryPage() {
                         <div className="p-12 text-center text-sm text-muted-foreground">No sold items match the criteria.</div>
                       ) : (
                         <div className="divide-y divide-border">
-                          {filteredSales.map((sale) => {
+                          {(me.roles.includes("front_desk") && !me.isAdmin ? filteredSales.slice(0, 5) : filteredSales).map((sale) => {
                             const formattedDate = new Date(sale.sold_at).toLocaleString();
                             return (
                               <div key={sale.id} className="flex flex-col gap-3 px-5 py-4 hover:bg-accent/10 transition sm:flex-row sm:items-center sm:justify-between">
