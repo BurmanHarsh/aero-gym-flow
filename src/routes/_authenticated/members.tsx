@@ -426,6 +426,8 @@ function MembersPage() {
     );
   };
 
+  const isFrontDesk = me.roles.includes("front_desk") && !me.isAdmin;
+
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
@@ -434,7 +436,7 @@ function MembersPage() {
             Members
           </h1>
           <p className="text-sm text-muted-foreground">
-            {me.roles.includes("front_desk") && !me.isAdmin
+            {isFrontDesk
               ? q.trim()
                 ? `Search results for "${q}"`
                 : "Recent 10 members added"
@@ -484,13 +486,13 @@ function MembersPage() {
         >
           <TabsList className="bg-card border border-border/80 p-1">
             <TabsTrigger value="active" className="cursor-pointer">
-              Active Member ({realActiveCount})
+              Active Member{!isFrontDesk && ` (${realActiveCount})`}
             </TabsTrigger>
             <TabsTrigger value="expiring" className="cursor-pointer">
-              Expiring Soon ({expiringCount})
+              Expiring Soon{!isFrontDesk && ` (${expiringCount})`}
             </TabsTrigger>
             <TabsTrigger value="inactive" className="cursor-pointer">
-              No Longer / Removed ({realInactiveCount})
+              No Longer / Removed{!isFrontDesk && ` (${realInactiveCount})`}
             </TabsTrigger>
           </TabsList>
 
