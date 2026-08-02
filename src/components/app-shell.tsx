@@ -24,6 +24,7 @@ import {
   Percent,
   Scale,
   Layout,
+  TrendingUp,
 } from "lucide-react";
 import { useState, type ReactNode, useEffect, useRef } from "react";
 import { useCurrentUser } from "@/hooks/use-current-user";
@@ -48,6 +49,7 @@ const PRIMARY: NavItem[] = [
   { to: "/rules", label: "Rules", icon: Scale },
 ];
 const ADMIN: NavItem[] = [
+  { to: "/profit", label: "Profit Analytics", icon: TrendingUp, adminOnly: true },
   { to: "/employees", label: "Employees", icon: UsersRound, adminOnly: true },
   { to: "/expenses", label: "Expenses", icon: Wallet, adminOnly: true },
   { to: "/coupons", label: "Coupons", icon: Percent, adminOnly: true },

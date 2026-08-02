@@ -8,8 +8,19 @@ export const getDashboardStats = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     const now = new Date();
     const today = getIndiaDayRange(now);
-    const startMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-    const startPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
+
+    const year = now.getFullYear();
+    const month = now.getMonth(); // 0-11
+    const monthStr = String(month + 1).padStart(2, "0");
+    const monthStartStr = `${year}-${monthStr}-01`;
+
+    const prevMonthDate = new Date(year, month - 1, 1);
+    const prevYear = prevMonthDate.getFullYear();
+    const prevMonthStr = String(prevMonthDate.getMonth() + 1).padStart(2, "0");
+    const prevMonthStartStr = `${prevYear}-${prevMonthStr}-01`;
+
+    const startMonth = new Date(`${monthStartStr}T00:00:00.000+05:30`).toISOString();
+    const startPrevMonth = new Date(`${prevMonthStartStr}T00:00:00.000+05:30`).toISOString();
     const expiryWindow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const { data: isAdmin } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
     const monthRevenueQuery = supabase.from("payments").select("amount_cents").gte("paid_at", startMonth);
@@ -51,7 +62,7 @@ export const getDashboardStats = createServerFn({ method: "GET" })
       pendingInvoicesQuery,
       paidInvoicesThisMonthQuery,
       supabase.from("members").select("*", { count: "exact", head: true }).eq("status", "expired"),
-      supabase.from("members").select("*", { count: "exact", head: true }).gte("joined_at", startMonth.slice(0, 10)),
+      supabase.from("members").select("*", { count: "exact", head: true }).gte("joined_at", monthStartStr),
     ]);
 
     const monthRev = (monthRevenue ?? []).reduce((s, r) => s + (r.amount_cents ?? 0), 0);

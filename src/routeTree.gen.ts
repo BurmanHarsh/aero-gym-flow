@@ -15,6 +15,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedScanCheckinRouteImport } from './routes/_authenticated/scan-checkin'
 import { Route as AuthenticatedRulesRouteImport } from './routes/_authenticated/rules'
+import { Route as AuthenticatedProfitRouteImport } from './routes/_authenticated/profit'
 import { Route as AuthenticatedPlansRouteImport } from './routes/_authenticated/plans'
 import { Route as AuthenticatedMembersRouteImport } from './routes/_authenticated/members'
 import { Route as AuthenticatedLeadsRouteImport } from './routes/_authenticated/leads'
@@ -57,6 +58,11 @@ const AuthenticatedScanCheckinRoute =
 const AuthenticatedRulesRoute = AuthenticatedRulesRouteImport.update({
   id: '/rules',
   path: '/rules',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedProfitRoute = AuthenticatedProfitRouteImport.update({
+  id: '/profit',
+  path: '/profit',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedPlansRoute = AuthenticatedPlansRouteImport.update({
@@ -141,6 +147,7 @@ export interface FileRoutesByFullPath {
   '/leads': typeof AuthenticatedLeadsRoute
   '/members': typeof AuthenticatedMembersRoute
   '/plans': typeof AuthenticatedPlansRoute
+  '/profit': typeof AuthenticatedProfitRoute
   '/rules': typeof AuthenticatedRulesRoute
   '/scan-checkin': typeof AuthenticatedScanCheckinRoute
   '/settings': typeof AuthenticatedSettingsRoute
@@ -161,6 +168,7 @@ export interface FileRoutesByTo {
   '/leads': typeof AuthenticatedLeadsRoute
   '/members': typeof AuthenticatedMembersRoute
   '/plans': typeof AuthenticatedPlansRoute
+  '/profit': typeof AuthenticatedProfitRoute
   '/rules': typeof AuthenticatedRulesRoute
   '/scan-checkin': typeof AuthenticatedScanCheckinRoute
   '/settings': typeof AuthenticatedSettingsRoute
@@ -183,6 +191,7 @@ export interface FileRoutesById {
   '/_authenticated/leads': typeof AuthenticatedLeadsRoute
   '/_authenticated/members': typeof AuthenticatedMembersRoute
   '/_authenticated/plans': typeof AuthenticatedPlansRoute
+  '/_authenticated/profit': typeof AuthenticatedProfitRoute
   '/_authenticated/rules': typeof AuthenticatedRulesRoute
   '/_authenticated/scan-checkin': typeof AuthenticatedScanCheckinRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
@@ -205,6 +214,7 @@ export interface FileRouteTypes {
     | '/leads'
     | '/members'
     | '/plans'
+    | '/profit'
     | '/rules'
     | '/scan-checkin'
     | '/settings'
@@ -225,6 +235,7 @@ export interface FileRouteTypes {
     | '/leads'
     | '/members'
     | '/plans'
+    | '/profit'
     | '/rules'
     | '/scan-checkin'
     | '/settings'
@@ -246,6 +257,7 @@ export interface FileRouteTypes {
     | '/_authenticated/leads'
     | '/_authenticated/members'
     | '/_authenticated/plans'
+    | '/_authenticated/profit'
     | '/_authenticated/rules'
     | '/_authenticated/scan-checkin'
     | '/_authenticated/settings'
@@ -299,6 +311,13 @@ declare module '@tanstack/react-router' {
       path: '/rules'
       fullPath: '/rules'
       preLoaderRoute: typeof AuthenticatedRulesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/profit': {
+      id: '/_authenticated/profit'
+      path: '/profit'
+      fullPath: '/profit'
+      preLoaderRoute: typeof AuthenticatedProfitRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/plans': {
@@ -409,6 +428,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedLeadsRoute: typeof AuthenticatedLeadsRoute
   AuthenticatedMembersRoute: typeof AuthenticatedMembersRoute
   AuthenticatedPlansRoute: typeof AuthenticatedPlansRoute
+  AuthenticatedProfitRoute: typeof AuthenticatedProfitRoute
   AuthenticatedRulesRoute: typeof AuthenticatedRulesRoute
   AuthenticatedScanCheckinRoute: typeof AuthenticatedScanCheckinRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
@@ -428,6 +448,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedLeadsRoute: AuthenticatedLeadsRoute,
   AuthenticatedMembersRoute: AuthenticatedMembersRoute,
   AuthenticatedPlansRoute: AuthenticatedPlansRoute,
+  AuthenticatedProfitRoute: AuthenticatedProfitRoute,
   AuthenticatedRulesRoute: AuthenticatedRulesRoute,
   AuthenticatedScanCheckinRoute: AuthenticatedScanCheckinRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,

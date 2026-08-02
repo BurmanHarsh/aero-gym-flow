@@ -105,13 +105,16 @@ function MembersPage() {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
-  const [activeTab, setActiveTab] = useState<"active" | "expiring" | "inactive">("active");
+  const [activeTab, setActiveTab] = useState<"active" | "expiring" | "renewed" | "inactive">("active");
 
   // Real database counts
   const [totalCount, setTotalCount] = useState(0);
   const [realActiveCount, setRealActiveCount] = useState(0);
   const [expiringCount, setExpiringCount] = useState(0);
+  const [renewedCount, setRenewedCount] = useState(0);
   const [realInactiveCount, setRealInactiveCount] = useState(0);
+  // Set of member IDs who have renewed (more than 1 paid invoice)
+  const [renewedMemberIds, setRenewedMemberIds] = useState<Set<string>>(new Set());
 
   // Profile Drawer / Edit Dialog / Delete Dialog states
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
@@ -144,6 +147,9 @@ function MembersPage() {
         .gte("expires_at", todayStr)
         .lte("expires_at", sevenDaysLater)
         .order("expires_at", { ascending: true });
+    } else if (activeTab === "renewed") {
+      // For renewed tab, fetch all active members first; we'll filter client-side by invoice count
+      query = query.eq("status", "active").order("updated_at", { ascending: false });
     } else {
       query = query.neq("status", "active").order("created_at", { ascending: false });
     }
@@ -163,7 +169,7 @@ function MembersPage() {
 
     const queryRange = (isFrontDesk && !q.trim()) ? query.range(0, 9) : query.range(from, to);
 
-    const [m, p, prof, counts] = await Promise.all([
+    const [m, p, prof, counts, invoiceData] = await Promise.all([
       queryRange,
       needsStaticData
         ? supabase.from("membership_plans").select("*").eq("active", true)
@@ -180,7 +186,20 @@ function MembersPage() {
           .gte("expires_at", todayStr)
           .lte("expires_at", sevenDaysLater),
       ]),
+      // Fetch all paid invoices to detect renewed members (members with >1 paid invoice)
+      supabase.from("invoices").select("member_id").eq("status", "paid"),
     ]);
+
+    // Build renewed member IDs set: members with more than 1 paid invoice
+    const invoiceCounts = new Map<string, number>();
+    ((invoiceData.data ?? []) as Array<{ member_id: string }>).forEach((inv) => {
+      invoiceCounts.set(inv.member_id, (invoiceCounts.get(inv.member_id) ?? 0) + 1);
+    });
+    const renewedIds = new Set<string>();
+    invoiceCounts.forEach((count, memberId) => {
+      if (count > 1) renewedIds.add(memberId);
+    });
+    setRenewedMemberIds(renewedIds);
 
     const total = counts[0].count ?? 0;
     const active = counts[1].count ?? 0;
@@ -190,6 +209,7 @@ function MembersPage() {
     setTotalCount(total);
     setRealActiveCount(active);
     setExpiringCount(expiring);
+    setRenewedCount(renewedIds.size);
     setRealInactiveCount(inactive);
 
     const plansResult = p as any;
@@ -278,10 +298,12 @@ function MembersPage() {
           ? r.status === "active"
           : activeTab === "expiring"
             ? r.status === "active"
-            : r.status !== "active";
+            : activeTab === "renewed"
+              ? r.status === "active" && renewedMemberIds.has(r.id)
+              : r.status !== "active";
       return matchesSearch && matchesTab;
     });
-  }, [rows, q, activeTab]);
+  }, [rows, q, activeTab, renewedMemberIds]);
 
   const isStaff = me.isAdmin || me.roles.includes("front_desk");
 
@@ -301,14 +323,18 @@ function MembersPage() {
               ? "No active members yet"
               : activeTab === "expiring"
                 ? "No members expiring soon"
-                : "No longer or removed members found"}
+                : activeTab === "renewed"
+                  ? "No renewed members found"
+                  : "No longer or removed members found"}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             {activeTab === "active"
               ? "Add a member or adjust your search query."
               : activeTab === "expiring"
                 ? "All active members have plenty of time left on their memberships."
-                : "Removed, expired, frozen, or cancelled member profiles will appear here."}
+                : activeTab === "renewed"
+                  ? "Members who have renewed their membership will appear here."
+                  : "Removed, expired, frozen, or cancelled member profiles will appear here."}
           </p>
         </div>
       );
@@ -481,7 +507,7 @@ function MembersPage() {
 
         <Tabs
           value={activeTab}
-          onValueChange={(val) => setActiveTab(val as "active" | "expiring" | "inactive")}
+          onValueChange={(val) => setActiveTab(val as "active" | "expiring" | "renewed" | "inactive")}
           className="w-full space-y-4"
         >
           <TabsList className="bg-card border border-border/80 p-1">
@@ -490,6 +516,9 @@ function MembersPage() {
             </TabsTrigger>
             <TabsTrigger value="expiring" className="cursor-pointer">
               Expiring Soon{!isFrontDesk && ` (${expiringCount})`}
+            </TabsTrigger>
+            <TabsTrigger value="renewed" className="cursor-pointer">
+              Renewed{!isFrontDesk && ` (${renewedCount})`}
             </TabsTrigger>
             <TabsTrigger value="inactive" className="cursor-pointer">
               No Longer / Removed{!isFrontDesk && ` (${realInactiveCount})`}
@@ -503,6 +532,12 @@ function MembersPage() {
           </TabsContent>
 
           <TabsContent value="expiring" className="mt-0 outline-none">
+            <div className="overflow-hidden rounded-2xl border border-border bg-card">
+              {renderMemberList()}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="renewed" className="mt-0 outline-none">
             <div className="overflow-hidden rounded-2xl border border-border bg-card">
               {renderMemberList()}
             </div>

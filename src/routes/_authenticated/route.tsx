@@ -31,7 +31,7 @@ export const Route = createFileRoute("/_authenticated")({
     const cached = getAuthCache();
     if (cached) {
       const isStaff = cached.roles.includes("admin") || cached.roles.includes("front_desk");
-      const restrictedPaths = ["/employees", "/expenses", "/audit", "/billing", "/landing"];
+      const restrictedPaths = ["/employees", "/expenses", "/audit", "/billing", "/landing", "/profit"];
       const isRestricted = restrictedPaths.some((p) => location.pathname.startsWith(p));
       if (!isStaff && isRestricted) throw redirect({ to: "/dashboard" });
       return { user: { id: cached.userId, email: cached.email } };
