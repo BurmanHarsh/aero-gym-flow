@@ -487,19 +487,20 @@ export const generateMonthReportPDF = createServerFn({ method: "POST" })
       });
     }
 
-    // Build PDF Document dynamically using pdfkit
-    const PDFDocument = (await import("pdfkit")).default;
+    // Build PDF Document dynamically using pdfkit.standalone to prevent __dirname runtime error in ESM
+    // @ts-ignore
+    const PDFDocument = ((await import("pdfkit/js/pdfkit.standalone.js")) as any).default || (await import("pdfkit/js/pdfkit.standalone.js"));
     const base64 = await new Promise<string>((resolve, reject) => {
       try {
         const doc = new PDFDocument({ size: "A4", margin: 35 });
         const chunks: any[] = [];
 
-        doc.on("data", (chunk) => chunks.push(chunk));
+        doc.on("data", (chunk: any) => chunks.push(chunk));
         doc.on("end", () => {
           const result = Buffer.concat(chunks);
           resolve(result.toString("base64"));
         });
-        doc.on("error", (err) => reject(err));
+        doc.on("error", (err: any) => reject(err));
 
         const marginLeft = 35;
         const printableWidth = 525.28;

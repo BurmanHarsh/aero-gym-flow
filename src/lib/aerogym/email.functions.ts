@@ -102,18 +102,19 @@ async function generatePdfInvoiceBase64(data: {
   amount: string;
   method: string;
 }): Promise<string> {
-  const PDFDocument = (await import("pdfkit")).default;
+  // @ts-ignore
+  const PDFDocument = ((await import("pdfkit/js/pdfkit.standalone.js")) as any).default || (await import("pdfkit/js/pdfkit.standalone.js"));
   return new Promise((resolve, reject) => {
     try {
       const doc = new PDFDocument({ size: "A4", margin: 50 });
       const chunks: any[] = [];
       
-      doc.on("data", (chunk) => chunks.push(chunk));
+      doc.on("data", (chunk: any) => chunks.push(chunk));
       doc.on("end", () => {
         const result = Buffer.concat(chunks);
         resolve(result.toString("base64"));
       });
-      doc.on("error", (err) => reject(err));
+      doc.on("error", (err: any) => reject(err));
 
       // 1. Header Banner Background (Deep Navy)
       doc.rect(0, 0, 595.28, 130).fill("#0b1020");

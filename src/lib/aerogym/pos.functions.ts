@@ -541,19 +541,20 @@ export const posGenerateReportPDF = createServerFn({ method: "POST" })
       throw new Error("Invalid report type");
     }
 
-    // Build PDF Document dynamically using pdfkit
-    const PDFDocument = (await import("pdfkit")).default;
+    // Build PDF Document dynamically using pdfkit.standalone to prevent __dirname runtime error in ESM
+    // @ts-ignore
+    const PDFDocument = ((await import("pdfkit/js/pdfkit.standalone.js")) as any).default || (await import("pdfkit/js/pdfkit.standalone.js"));
     const base64 = await new Promise<string>((resolve, reject) => {
       try {
         const doc = new PDFDocument({ size: "A4", margin: 40 });
         const chunks: any[] = [];
         
-        doc.on("data", (chunk) => chunks.push(chunk));
+        doc.on("data", (chunk: any) => chunks.push(chunk));
         doc.on("end", () => {
           const result = Buffer.concat(chunks);
           resolve(result.toString("base64"));
         });
-        doc.on("error", (err) => reject(err));
+        doc.on("error", (err: any) => reject(err));
 
         // Design headers
         doc.rect(0, 0, 595.28, 120).fill("#0b1020");
