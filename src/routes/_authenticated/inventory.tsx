@@ -352,8 +352,8 @@ function InventoryPage() {
         />
       ) : (
         <>
-          {/* Tab Switcher (Staff Only) */}
-          {isStaff && (
+          {/* Tab Switcher (Admin Only) */}
+          {me.isAdmin && (
             <div className="flex border-b border-border/80">
               <button
                 onClick={() => setActiveTab("catalog")}

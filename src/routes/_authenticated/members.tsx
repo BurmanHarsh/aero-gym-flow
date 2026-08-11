@@ -463,9 +463,7 @@ function MembersPage() {
           </h1>
           <p className="text-sm text-muted-foreground">
             {isFrontDesk
-              ? q.trim()
-                ? `Search results for "${q}"`
-                : "Recent 10 members added"
+              ? "Add new members to the gym."
               : `${totalCount} total · ${realActiveCount} active`}
           </p>
         </div>
@@ -494,141 +492,155 @@ function MembersPage() {
         )}
       </header>
 
-      <div className="space-y-4">
-        <div className="relative w-full">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search by name, phone or code..."
-            className="pl-9 w-full"
-          />
+      {isFrontDesk ? (
+        <div className="rounded-2xl border border-border bg-card p-12 text-center">
+          <div className="grid h-14 w-14 mx-auto place-items-center rounded-2xl gradient-primary text-primary-foreground mb-4">
+            <Plus className="h-6 w-6" />
+          </div>
+          <p className="text-sm font-medium">Front desk — Add members only</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Use the "Add member" button above to register new gym members. Member listings and management are available to admins only.
+          </p>
         </div>
-
-        <Tabs
-          value={activeTab}
-          onValueChange={(val) => setActiveTab(val as "active" | "expiring" | "renewed" | "inactive")}
-          className="w-full space-y-4"
-        >
-          <TabsList className="bg-card border border-border/80 p-1">
-            <TabsTrigger value="active" className="cursor-pointer">
-              Active Member{!isFrontDesk && ` (${realActiveCount})`}
-            </TabsTrigger>
-            <TabsTrigger value="expiring" className="cursor-pointer">
-              Expiring Soon{!isFrontDesk && ` (${expiringCount})`}
-            </TabsTrigger>
-            <TabsTrigger value="renewed" className="cursor-pointer">
-              Renewed{!isFrontDesk && ` (${renewedCount})`}
-            </TabsTrigger>
-            <TabsTrigger value="inactive" className="cursor-pointer">
-              No Longer / Removed{!isFrontDesk && ` (${realInactiveCount})`}
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="active" className="mt-0 outline-none">
-            <div className="overflow-hidden rounded-2xl border border-border bg-card">
-              {renderMemberList()}
+      ) : (
+        <>
+          <div className="space-y-4">
+            <div className="relative w-full">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search by name, phone or code..."
+                className="pl-9 w-full"
+              />
             </div>
-          </TabsContent>
 
-          <TabsContent value="expiring" className="mt-0 outline-none">
-            <div className="overflow-hidden rounded-2xl border border-border bg-card">
-              {renderMemberList()}
-            </div>
-          </TabsContent>
+            <Tabs
+              value={activeTab}
+              onValueChange={(val) => setActiveTab(val as "active" | "expiring" | "renewed" | "inactive")}
+              className="w-full space-y-4"
+            >
+              <TabsList className="bg-card border border-border/80 p-1">
+                <TabsTrigger value="active" className="cursor-pointer">
+                  Active Member{` (${realActiveCount})`}
+                </TabsTrigger>
+                <TabsTrigger value="expiring" className="cursor-pointer">
+                  Expiring Soon{` (${expiringCount})`}
+                </TabsTrigger>
+                <TabsTrigger value="renewed" className="cursor-pointer">
+                  Renewed{` (${renewedCount})`}
+                </TabsTrigger>
+                <TabsTrigger value="inactive" className="cursor-pointer">
+                  No Longer / Removed{` (${realInactiveCount})`}
+                </TabsTrigger>
+              </TabsList>
 
-          <TabsContent value="renewed" className="mt-0 outline-none">
-            <div className="overflow-hidden rounded-2xl border border-border bg-card">
-              {renderMemberList()}
-            </div>
-          </TabsContent>
+              <TabsContent value="active" className="mt-0 outline-none">
+                <div className="overflow-hidden rounded-2xl border border-border bg-card">
+                  {renderMemberList()}
+                </div>
+              </TabsContent>
 
-          <TabsContent value="inactive" className="mt-0 outline-none">
-            <div className="overflow-hidden rounded-2xl border border-border bg-card">
-              {renderMemberList()}
-            </div>
-          </TabsContent>
-        </Tabs>
-      </div>
+              <TabsContent value="expiring" className="mt-0 outline-none">
+                <div className="overflow-hidden rounded-2xl border border-border bg-card">
+                  {renderMemberList()}
+                </div>
+              </TabsContent>
 
-      {/* Detailed Member Profile Dialog */}
-      <Dialog
-        open={!!selectedMember}
-        onOpenChange={(o) => !o && setSelectedMember(null)}
-      >
-        {selectedMember && (
-          <MemberProfileDialog
-            member={selectedMember}
-            plans={plans}
-            me={me}
-            onClose={() => {
-              setSelectedMember(null);
-              load();
-            }}
-            onEdit={() => setEditingMember(selectedMember)}
-            onDelete={() => setDeletingMember(selectedMember)}
-            onChangeStatus={async (nextStatus: string) => {
-              if (!selectedMember) return;
-              const { error } = await supabase
-                .from("members")
-                .update({ status: nextStatus })
-                .eq("id", selectedMember.id);
-              if (error) {
-                toast.error(error.message);
-                return;
-              }
-              toast.success(`Membership status updated to ${nextStatus}`);
-              setSelectedMember({ ...selectedMember, status: nextStatus });
-              load();
-            }}
-          />
-        )}
-      </Dialog>
+              <TabsContent value="renewed" className="mt-0 outline-none">
+                <div className="overflow-hidden rounded-2xl border border-border bg-card">
+                  {renderMemberList()}
+                </div>
+              </TabsContent>
 
-      {/* Edit Member Details Dialog */}
-      <Dialog
-        open={!!editingMember}
-        onOpenChange={(o) => !o && setEditingMember(null)}
-      >
-        {editingMember && (
-          <EditMemberDialog
-            member={editingMember}
-            plans={plans}
-            onClose={() => {
-              setEditingMember(null);
-              load();
-            }}
-          />
-        )}
-      </Dialog>
+              <TabsContent value="inactive" className="mt-0 outline-none">
+                <div className="overflow-hidden rounded-2xl border border-border bg-card">
+                  {renderMemberList()}
+                </div>
+              </TabsContent>
+            </Tabs>
+          </div>
 
-      {/* Delete Member Confirmation Dialog */}
-      <Dialog
-        open={!!deletingMember}
-        onOpenChange={(o) => !o && setDeletingMember(null)}
-      >
-        {deletingMember && (
-          <DeleteMemberConfirm
-            member={deletingMember}
-            onClose={() => setDeletingMember(null)}
-            onConfirm={async () => {
-              if (!deletingMember) return;
-              const { error } = await supabase
-                .from("members")
-                .delete()
-                .eq("id", deletingMember.id);
-              if (error) {
-                toast.error(error.message);
-                return;
-              }
-              toast.success("Member profile deleted permanently");
-              setDeletingMember(null);
-              setSelectedMember(null);
-              load();
-            }}
-          />
-        )}
-      </Dialog>
+          {/* Detailed Member Profile Dialog */}
+          <Dialog
+            open={!!selectedMember}
+            onOpenChange={(o) => !o && setSelectedMember(null)}
+          >
+            {selectedMember && (
+              <MemberProfileDialog
+                member={selectedMember}
+                plans={plans}
+                me={me}
+                onClose={() => {
+                  setSelectedMember(null);
+                  load();
+                }}
+                onEdit={() => setEditingMember(selectedMember)}
+                onDelete={() => setDeletingMember(selectedMember)}
+                onChangeStatus={async (nextStatus: string) => {
+                  if (!selectedMember) return;
+                  const { error } = await supabase
+                    .from("members")
+                    .update({ status: nextStatus })
+                    .eq("id", selectedMember.id);
+                  if (error) {
+                    toast.error(error.message);
+                    return;
+                  }
+                  toast.success(`Membership status updated to ${nextStatus}`);
+                  setSelectedMember({ ...selectedMember, status: nextStatus });
+                  load();
+                }}
+              />
+            )}
+          </Dialog>
+
+          {/* Edit Member Details Dialog */}
+          <Dialog
+            open={!!editingMember}
+            onOpenChange={(o) => !o && setEditingMember(null)}
+          >
+            {editingMember && (
+              <EditMemberDialog
+                member={editingMember}
+                plans={plans}
+                onClose={() => {
+                  setEditingMember(null);
+                  load();
+                }}
+              />
+            )}
+          </Dialog>
+
+          {/* Delete Member Confirmation Dialog */}
+          <Dialog
+            open={!!deletingMember}
+            onOpenChange={(o) => !o && setDeletingMember(null)}
+          >
+            {deletingMember && (
+              <DeleteMemberConfirm
+                member={deletingMember}
+                onClose={() => setDeletingMember(null)}
+                onConfirm={async () => {
+                  if (!deletingMember) return;
+                  const { error } = await supabase
+                    .from("members")
+                    .delete()
+                    .eq("id", deletingMember.id);
+                  if (error) {
+                    toast.error(error.message);
+                    return;
+                  }
+                  toast.success("Member profile deleted permanently");
+                  setDeletingMember(null);
+                  setSelectedMember(null);
+                  load();
+                }}
+              />
+            )}
+          </Dialog>
+        </>
+      )}
     </div>
   );
 }

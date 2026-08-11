@@ -21,7 +21,7 @@ export interface SupplementItemProfit {
   totalCostCents: number;
   netProfitCents: number;
   marginPercent: number;
-  monthKey: string; // e.g. "2026-06"
+  monthKey: string;
   soldAt: string;
 }
 

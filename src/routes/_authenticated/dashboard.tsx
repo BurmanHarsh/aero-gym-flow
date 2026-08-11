@@ -182,8 +182,6 @@ function Dashboard() {
           <FrontDeskDashboard
             stats={dashboardStats}
             attendance={attendance}
-            recentInvoices={recentInvoicesQuery.data ?? []}
-            inflowLoading={recentInvoicesQuery.isLoading}
           />
         ) : (
           <MemberDashboard
@@ -552,13 +550,9 @@ function PlanManager({ plans, loading, error, onSelectPlan }: { plans: Plan[]; l
 function FrontDeskDashboard({
   stats: d,
   attendance,
-  recentInvoices,
-  inflowLoading,
 }: {
   stats?: DashboardStats;
   attendance: AttendancePoint[];
-  recentInvoices: any[];
-  inflowLoading: boolean;
 }) {
   return (
     <div className="space-y-8">
@@ -568,29 +562,6 @@ function FrontDeskDashboard({
         <StatCard label="Check-ins today" value={d?.checkInsToday ?? "-"} icon={QrCode} tone="info" />
         <StatCard label="Expiring soon" value={d?.expiringSoon ?? "-"} icon={CalendarClock} tone="warning" hint="Renewal calls" />
         <StatCard label="Pending invoices" value={d?.pendingInvoices ?? "-"} icon={Receipt} tone="warning" />
-      </section>
-
-      <section className="grid gap-4 lg:grid-cols-3">
-        <Panel className="lg:col-span-2">
-          <div className="flex items-center justify-between mb-4">
-            <PanelTitle title="Recent Cash Inflow" subtitle="Offline payments and registrations" />
-            <Button asChild variant="ghost" size="sm" className="text-xs text-primary hover:text-primary">
-              <Link to="/billing">View all</Link>
-            </Button>
-          </div>
-          <InflowList invoices={recentInvoices} loading={inflowLoading} />
-        </Panel>
-
-        <Panel>
-          <h3 className="mb-4 text-sm font-semibold">Counter queue</h3>
-          <div className="space-y-3">
-            <QueueItem icon={CalendarClock} label="Renewals due" value={d?.expiringSoon ?? 0} />
-            <QueueItem icon={Receipt} label="Payment reminders" value={d?.pendingInvoices ?? 0} />
-            <div className="pt-2">
-              <BroadcastManager />
-            </div>
-          </div>
-        </Panel>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-3">
