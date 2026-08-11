@@ -556,11 +556,10 @@ function FrontDeskDashboard({
 }) {
   return (
     <div className="space-y-8">
-      <DashboardHeader title="Front desk workspace" subtitle="Today's check-ins, renewals, and payment tasks." />
+      <DashboardHeader title="Front desk workspace" subtitle="Today's check-ins and payment tasks." />
 
-      <section className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-3">
+      <section className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2">
         <StatCard label="Check-ins today" value={d?.checkInsToday ?? "-"} icon={QrCode} tone="info" />
-        <StatCard label="Expiring soon" value={d?.expiringSoon ?? "-"} icon={CalendarClock} tone="warning" hint="Renewal calls" />
         <StatCard label="Pending invoices" value={d?.pendingInvoices ?? "-"} icon={Receipt} tone="warning" />
       </section>
 
@@ -573,7 +572,6 @@ function FrontDeskDashboard({
           <h3 className="mb-4 text-sm font-semibold">Shift focus</h3>
           <div className="space-y-3">
             <FocusRow label="Greet and check in members" done={Boolean((d?.checkInsToday ?? 0) > 0)} />
-            <FocusRow label="Call expiring memberships" done={(d?.expiringSoon ?? 0) === 0} />
             <FocusRow label="Clear pending payments" done={(d?.pendingInvoices ?? 0) === 0} />
           </div>
         </Panel>
