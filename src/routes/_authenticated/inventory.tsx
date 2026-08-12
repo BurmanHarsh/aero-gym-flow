@@ -165,6 +165,7 @@ function InventoryPage() {
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<"catalog" | "sales" | "analytics">("catalog");
+  const [priceViewMode, setPriceViewMode] = useState<"sell" | "buy">("sell");
 
   const [addOpen, setAddOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
@@ -414,6 +415,32 @@ function InventoryPage() {
               />
             </div>
             <div className="flex flex-wrap items-center gap-3">
+              {me.isAdmin && (
+                <div className="flex items-center rounded-xl bg-muted/80 p-1 border border-border/40">
+                  <button
+                    type="button"
+                    onClick={() => setPriceViewMode("sell")}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                      priceViewMode === "sell"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Selling Price
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPriceViewMode("buy")}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                      priceViewMode === "buy"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Buying Price
+                  </button>
+                </div>
+              )}
               <div>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger className="w-[180px] bg-background/50">
@@ -490,11 +517,16 @@ function InventoryPage() {
                           {isStaff ? (
                             <>
                               <div className="text-right text-xs">
-                                {me.isAdmin && (
-                                  <div className="font-semibold text-foreground">Buy: {money(item.purchase_price_cents)}</div>
-                                )}
-                                {item.sale_price_cents ? (
-                                  <div className="text-[11px] text-muted-foreground">Sell: {money(item.sale_price_cents)}</div>
+                                {me.isAdmin ? (
+                                  priceViewMode === "buy" ? (
+                                    <div className="font-semibold text-foreground">Buy: {money(item.purchase_price_cents)}</div>
+                                  ) : item.sale_price_cents ? (
+                                    <div className="font-semibold text-foreground">Sell: {money(item.sale_price_cents)}</div>
+                                  ) : (
+                                    <div className="text-[11px] text-muted-foreground italic">Not for retail</div>
+                                  )
+                                ) : item.sale_price_cents ? (
+                                  <div className="font-semibold text-foreground">Sell: {money(item.sale_price_cents)}</div>
                                 ) : (
                                   <div className="text-[11px] text-muted-foreground italic">Not for retail</div>
                                 )}
