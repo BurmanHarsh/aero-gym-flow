@@ -38,17 +38,35 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
+  const isChunkError =
+    error?.message?.includes("Failed to fetch dynamically imported module") ||
+    error?.message?.includes("Importing a module script failed") ||
+    error?.message?.includes("error loading dynamically imported module");
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">Something broke</h1>
-        <p className="mt-2 text-sm text-muted-foreground">{error.message}</p>
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">
+          {isChunkError ? "New Version Available" : "Something broke"}
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {isChunkError
+            ? "A new build was deployed. Please reload the page to load the latest version."
+            : error.message}
+        </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
-            onClick={() => { router.invalidate(); reset(); }}
+            onClick={() => {
+              if (isChunkError) {
+                window.location.reload();
+              } else {
+                router.invalidate();
+                reset();
+              }
+            }}
             className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
           >
-            Try again
+            {isChunkError ? "Reload Page" : "Try again"}
           </button>
         </div>
       </div>

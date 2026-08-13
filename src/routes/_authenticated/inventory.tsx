@@ -36,7 +36,7 @@ import {
   posGetBillingStats,
   posGenerateReportPDF
 } from "@/lib/aerogym/pos.functions";
-import { Barcode, ReceiptText, CalendarRange, Download, Ban, Headphones, Flame, Dumbbell, AlertTriangle, Sparkles, Footprints, Shield, Key } from "lucide-react";
+import { Barcode, ReceiptText, CalendarRange, Download, Ban, Headphones, Flame, Dumbbell, AlertTriangle, Sparkles, Footprints, Shield, Key, Lock, LockOpen } from "lucide-react";
 import { BarChart as RechartsBarChart, Bar as RechartsBar, XAxis as RechartsXAxis, YAxis as RechartsYAxis, CartesianGrid as RechartsCartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer as RechartsResponsiveContainer } from "recharts";
 
 export const Route = createFileRoute("/_authenticated/inventory")({
@@ -166,6 +166,10 @@ function InventoryPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<"catalog" | "sales" | "analytics">("catalog");
   const [priceViewMode, setPriceViewMode] = useState<"sell" | "buy">("sell");
+  const [buyingUnlocked, setBuyingUnlocked] = useState(() => sessionStorage.getItem("inventory_buy_unlocked") === "true");
+  const [showBuyPasswordDialog, setShowBuyPasswordDialog] = useState(false);
+  const [buyPasswordInput, setBuyPasswordInput] = useState("");
+  const [buyPasswordError, setBuyPasswordError] = useState(false);
 
   const [addOpen, setAddOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
@@ -430,13 +434,26 @@ function InventoryPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setPriceViewMode("buy")}
-                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                    onClick={() => {
+                      if (buyingUnlocked) {
+                        setPriceViewMode("buy");
+                      } else {
+                        setBuyPasswordInput("");
+                        setBuyPasswordError(false);
+                        setShowBuyPasswordDialog(true);
+                      }
+                    }}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all inline-flex items-center gap-1.5 ${
                       priceViewMode === "buy"
                         ? "bg-background text-foreground shadow-sm"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
+                    {buyingUnlocked ? (
+                      <LockOpen className="h-3 w-3" />
+                    ) : (
+                      <Lock className="h-3 w-3" />
+                    )}
                     Buying Price
                   </button>
                 </div>
@@ -829,6 +846,92 @@ function InventoryPage() {
             onClose={() => setSelectedItem(null)}
           />
         )}
+      </Dialog>
+
+      {/* Buying Price Password Dialog */}
+      <Dialog open={showBuyPasswordDialog} onOpenChange={(o) => { if (!o) { setShowBuyPasswordDialog(false); setBuyPasswordInput(""); setBuyPasswordError(false); } }}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Lock className="h-5 w-5 text-amber-500" />
+              Unlock Buying Prices
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              Buying prices are protected. Enter the access password to view them.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="buy-password" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Password
+              </Label>
+              <Input
+                id="buy-password"
+                type="password"
+                value={buyPasswordInput}
+                onChange={(e) => {
+                  setBuyPasswordInput(e.target.value);
+                  setBuyPasswordError(false);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    if (buyPasswordInput === "Tank@10#T") {
+                      sessionStorage.setItem("inventory_buy_unlocked", "true");
+                      setBuyingUnlocked(true);
+                      setPriceViewMode("buy");
+                      setShowBuyPasswordDialog(false);
+                      setBuyPasswordInput("");
+                      setBuyPasswordError(false);
+                      toast.success("Buying prices unlocked");
+                    } else {
+                      setBuyPasswordError(true);
+                    }
+                  }
+                }}
+                placeholder="Enter access password"
+                className={`bg-background/50 ${buyPasswordError ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                autoFocus
+              />
+              {buyPasswordError && (
+                <p className="text-xs text-destructive font-medium flex items-center gap-1">
+                  <ShieldAlert className="h-3.5 w-3.5" />
+                  Incorrect password. Please try again.
+                </p>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setShowBuyPasswordDialog(false);
+                setBuyPasswordInput("");
+                setBuyPasswordError(false);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (buyPasswordInput === "Tank@10#T") {
+                  sessionStorage.setItem("inventory_buy_unlocked", "true");
+                  setBuyingUnlocked(true);
+                  setPriceViewMode("buy");
+                  setShowBuyPasswordDialog(false);
+                  setBuyPasswordInput("");
+                  setBuyPasswordError(false);
+                  toast.success("Buying prices unlocked");
+                } else {
+                  setBuyPasswordError(true);
+                }
+              }}
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              <LockOpen className="mr-1.5 h-4 w-4" />
+              Unlock
+            </Button>
+          </DialogFooter>
+        </DialogContent>
       </Dialog>
     </div>
   );
