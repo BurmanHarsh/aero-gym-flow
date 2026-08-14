@@ -166,10 +166,9 @@ function InventoryPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<"catalog" | "sales" | "analytics">("catalog");
   const [priceViewMode, setPriceViewMode] = useState<"sell" | "buy">("sell");
-  const [buyingUnlocked, setBuyingUnlocked] = useState(() => sessionStorage.getItem("inventory_buy_unlocked") === "true");
-  const [showBuyPasswordDialog, setShowBuyPasswordDialog] = useState(false);
-  const [buyPasswordInput, setBuyPasswordInput] = useState("");
-  const [buyPasswordError, setBuyPasswordError] = useState(false);
+  const [sectionUnlocked, setSectionUnlocked] = useState(() => sessionStorage.getItem("inventory_section_unlocked") === "true");
+  const [sectionPasswordInput, setSectionPasswordInput] = useState("");
+  const [sectionPasswordError, setSectionPasswordError] = useState(false);
 
   const [addOpen, setAddOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
@@ -296,6 +295,85 @@ function InventoryPage() {
     outOfStock: rows.filter((r) => r.quantity === 0).length,
   };
 
+  if (!sectionUnlocked) {
+    return (
+      <div className="flex min-h-[70vh] flex-col items-center justify-center p-4">
+        <div className="w-full max-w-md space-y-6 rounded-2xl border border-border bg-card p-8 text-center shadow-xl backdrop-blur">
+          <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-amber-500/10 text-amber-500 border border-amber-500/20 shadow-glow">
+            <Lock className="h-8 w-8" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold tracking-tight">Inventory Section Locked</h2>
+            <p className="text-sm text-muted-foreground">
+              Enter access password to view and manage inventory.
+            </p>
+          </div>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (sectionPasswordInput === "Tank@10#T") {
+                sessionStorage.setItem("inventory_section_unlocked", "true");
+                setSectionUnlocked(true);
+                setSectionPasswordInput("");
+                setSectionPasswordError(false);
+                toast.success("Inventory section unlocked");
+              } else {
+                setSectionPasswordError(true);
+              }
+            }}
+            className="space-y-4 pt-2"
+          >
+            <div className="space-y-2 text-left">
+              <Label htmlFor="inventory-section-password" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Access Password
+              </Label>
+              <Input
+                id="inventory-section-password"
+                type="password"
+                value={sectionPasswordInput}
+                onChange={(e) => {
+                  setSectionPasswordInput(e.target.value);
+                  setSectionPasswordError(false);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (sectionPasswordInput === "Tank@10#T") {
+                      sessionStorage.setItem("inventory_section_unlocked", "true");
+                      setSectionUnlocked(true);
+                      setSectionPasswordInput("");
+                      setSectionPasswordError(false);
+                      toast.success("Inventory section unlocked");
+                    } else {
+                      setSectionPasswordError(true);
+                    }
+                  }
+                }}
+                placeholder="Enter password..."
+                className={`bg-background/50 h-11 text-center font-mono ${
+                  sectionPasswordError ? "border-destructive focus-visible:ring-destructive" : ""
+                }`}
+                autoFocus
+              />
+              {sectionPasswordError && (
+                <p className="text-xs text-destructive font-medium flex items-center justify-center gap-1 mt-1">
+                  <ShieldAlert className="h-3.5 w-3.5" />
+                  Incorrect password. Access denied.
+                </p>
+              )}
+            </div>
+            <Button
+              type="submit"
+              className="w-full bg-amber-600 hover:bg-amber-700 text-white h-11 font-semibold shadow-glow"
+            >
+              <LockOpen className="mr-2 h-4 w-4" /> Unlock Section
+            </Button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
@@ -307,8 +385,22 @@ function InventoryPage() {
               : "Browse supplements, apparel, and retail items available at the counter."}
           </p>
         </div>
-        {isStaff && (
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              sessionStorage.removeItem("inventory_section_unlocked");
+              setSectionUnlocked(false);
+              toast.info("Inventory section locked");
+            }}
+            className="text-xs border-border/80 hover:bg-destructive/10 hover:text-destructive transition-colors"
+            title="Lock Inventory Section"
+          >
+            <Lock className="mr-1.5 h-3.5 w-3.5 text-amber-500" /> Lock Section
+          </Button>
+          {isStaff && (
+            <div className="flex items-center gap-2">
             {!showSellPOS ? (
               <Button
                 onClick={() => {
@@ -340,8 +432,9 @@ function InventoryPage() {
                 <AddItemDialog isAdmin={me.isAdmin} onClose={() => { setAddOpen(false); load(); }} />
               </Dialog>
             )}
-          </div>
-        )}
+            </div>
+          )}
+        </div>
       </header>
 
       {showSellPOS ? (
@@ -434,26 +527,13 @@ function InventoryPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      if (buyingUnlocked) {
-                        setPriceViewMode("buy");
-                      } else {
-                        setBuyPasswordInput("");
-                        setBuyPasswordError(false);
-                        setShowBuyPasswordDialog(true);
-                      }
-                    }}
-                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all inline-flex items-center gap-1.5 ${
+                    onClick={() => setPriceViewMode("buy")}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
                       priceViewMode === "buy"
                         ? "bg-background text-foreground shadow-sm"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    {buyingUnlocked ? (
-                      <LockOpen className="h-3 w-3" />
-                    ) : (
-                      <Lock className="h-3 w-3" />
-                    )}
                     Buying Price
                   </button>
                 </div>
@@ -848,91 +928,7 @@ function InventoryPage() {
         )}
       </Dialog>
 
-      {/* Buying Price Password Dialog */}
-      <Dialog open={showBuyPasswordDialog} onOpenChange={(o) => { if (!o) { setShowBuyPasswordDialog(false); setBuyPasswordInput(""); setBuyPasswordError(false); } }}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Lock className="h-5 w-5 text-amber-500" />
-              Unlock Buying Prices
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <p className="text-sm text-muted-foreground">
-              Buying prices are protected. Enter the access password to view them.
-            </p>
-            <div className="space-y-2">
-              <Label htmlFor="buy-password" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Password
-              </Label>
-              <Input
-                id="buy-password"
-                type="password"
-                value={buyPasswordInput}
-                onChange={(e) => {
-                  setBuyPasswordInput(e.target.value);
-                  setBuyPasswordError(false);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    if (buyPasswordInput === "Tank@10#T") {
-                      sessionStorage.setItem("inventory_buy_unlocked", "true");
-                      setBuyingUnlocked(true);
-                      setPriceViewMode("buy");
-                      setShowBuyPasswordDialog(false);
-                      setBuyPasswordInput("");
-                      setBuyPasswordError(false);
-                      toast.success("Buying prices unlocked");
-                    } else {
-                      setBuyPasswordError(true);
-                    }
-                  }
-                }}
-                placeholder="Enter access password"
-                className={`bg-background/50 ${buyPasswordError ? "border-destructive focus-visible:ring-destructive" : ""}`}
-                autoFocus
-              />
-              {buyPasswordError && (
-                <p className="text-xs text-destructive font-medium flex items-center gap-1">
-                  <ShieldAlert className="h-3.5 w-3.5" />
-                  Incorrect password. Please try again.
-                </p>
-              )}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setShowBuyPasswordDialog(false);
-                setBuyPasswordInput("");
-                setBuyPasswordError(false);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                if (buyPasswordInput === "Tank@10#T") {
-                  sessionStorage.setItem("inventory_buy_unlocked", "true");
-                  setBuyingUnlocked(true);
-                  setPriceViewMode("buy");
-                  setShowBuyPasswordDialog(false);
-                  setBuyPasswordInput("");
-                  setBuyPasswordError(false);
-                  toast.success("Buying prices unlocked");
-                } else {
-                  setBuyPasswordError(true);
-                }
-              }}
-              className="bg-amber-600 hover:bg-amber-700 text-white"
-            >
-              <LockOpen className="mr-1.5 h-4 w-4" />
-              Unlock
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
     </div>
   );
 }
