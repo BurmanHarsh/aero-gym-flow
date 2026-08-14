@@ -182,6 +182,7 @@ function InventoryPage() {
   const [cart, setCart] = useState<Array<{ item: InventoryItem; quantity: number }>>([]);
 
   const isStaff = me.isAdmin || me.roles.includes("front_desk");
+  const isFrontDesk = me.roles.includes("front_desk") && !me.isAdmin;
 
   async function load() {
     setLoading(true);
@@ -295,7 +296,7 @@ function InventoryPage() {
     outOfStock: rows.filter((r) => r.quantity === 0).length,
   };
 
-  if (!sectionUnlocked) {
+  if (!isFrontDesk && !sectionUnlocked) {
     return (
       <div className="flex min-h-[70vh] flex-col items-center justify-center p-4">
         <div className="w-full max-w-md space-y-6 rounded-2xl border border-border bg-card p-8 text-center shadow-xl backdrop-blur">
@@ -386,19 +387,21 @@ function InventoryPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              sessionStorage.removeItem("inventory_section_unlocked");
-              setSectionUnlocked(false);
-              toast.info("Inventory section locked");
-            }}
-            className="text-xs border-border/80 hover:bg-destructive/10 hover:text-destructive transition-colors"
-            title="Lock Inventory Section"
-          >
-            <Lock className="mr-1.5 h-3.5 w-3.5 text-amber-500" /> Lock Section
-          </Button>
+          {!isFrontDesk && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                sessionStorage.removeItem("inventory_section_unlocked");
+                setSectionUnlocked(false);
+                toast.info("Inventory section locked");
+              }}
+              className="text-xs border-border/80 hover:bg-destructive/10 hover:text-destructive transition-colors"
+              title="Lock Inventory Section"
+            >
+              <Lock className="mr-1.5 h-3.5 w-3.5 text-amber-500" /> Lock Section
+            </Button>
+          )}
           {isStaff && (
             <div className="flex items-center gap-2">
             {!showSellPOS ? (
