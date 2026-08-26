@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordGate } from "@/components/password-gate";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -455,7 +456,13 @@ function MembersPage() {
   const isFrontDesk = me.roles.includes("front_desk") && !me.isAdmin;
 
   return (
-    <div className="space-y-6">
+    <PasswordGate
+      requiredPassword="Manu1234"
+      storageKey="tbt_member_unlocked"
+      title="Member Section Security"
+      subtitle="Enter security password Manu1234 to access member registry and management."
+    >
+      <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
@@ -642,6 +649,7 @@ function MembersPage() {
         </>
       )}
     </div>
+    </PasswordGate>
   );
 }
 

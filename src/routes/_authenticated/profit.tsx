@@ -8,6 +8,7 @@ import {
 } from "@/lib/aerogym/profit.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordGate } from "@/components/password-gate";
 import {
   TrendingUp,
   Users,
@@ -225,7 +226,13 @@ function ProfitPage() {
   const activeMetricConfig = METRIC_CONFIGS[selectedMetric];
 
   return (
-    <div className="space-y-6 pb-12">
+    <PasswordGate
+      requiredPassword="Tank@10#T"
+      storageKey="tbt_admin_unlocked"
+      title="Profit & Analysis Security"
+      subtitle="Enter security password Tank@10#T to access profit analytics."
+    >
+      <div className="space-y-6 pb-12">
       {/* Top Header */}
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>
@@ -795,6 +802,7 @@ function ProfitPage() {
           );
         })}
       </div>
-    </div>
+      </div>
+    </PasswordGate>
   );
 }

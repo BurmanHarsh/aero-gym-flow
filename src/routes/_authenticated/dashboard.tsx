@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { PasswordGate } from "@/components/password-gate";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { supabase } from "@/integrations/supabase/client";
 import type { LucideIcon } from "lucide-react";
@@ -171,13 +172,20 @@ function Dashboard() {
 
       <div className="relative z-10">
         {me.isAdmin ? (
-          <AdminDashboard
-            stats={dashboardStats}
-            attendance={attendance}
-            recentInvoices={recentInvoicesQuery.data ?? []}
-            inflowLoading={recentInvoicesQuery.isLoading}
-            onSelectPlan={setSelectedPlan}
-          />
+          <PasswordGate
+            requiredPassword="Tank@10#T"
+            storageKey="tbt_admin_unlocked"
+            title="Admin Dashboard Security"
+            subtitle="Enter admin security password Tank@10#T to view financial stats and controls."
+          >
+            <AdminDashboard
+              stats={dashboardStats}
+              attendance={attendance}
+              recentInvoices={recentInvoicesQuery.data ?? []}
+              inflowLoading={recentInvoicesQuery.isLoading}
+              onSelectPlan={setSelectedPlan}
+            />
+          </PasswordGate>
         ) : me.roles.includes("front_desk") ? (
           <FrontDeskDashboard
             stats={dashboardStats}
