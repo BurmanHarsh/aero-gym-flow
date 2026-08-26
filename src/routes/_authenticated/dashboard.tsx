@@ -176,7 +176,6 @@ function Dashboard() {
             requiredPassword="Tank@10#T"
             storageKey="tbt_admin_unlocked"
             title="Admin Dashboard Security"
-            subtitle="Enter admin security password Tank@10#T to view financial stats and controls."
           >
             <AdminDashboard
               stats={dashboardStats}

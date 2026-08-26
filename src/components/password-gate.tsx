@@ -17,7 +17,7 @@ export function PasswordGate({
   requiredPassword,
   storageKey,
   title,
-  subtitle = "Enter security password to access this section.",
+  subtitle,
   children,
 }: PasswordGateProps) {
   const [unlocked, setUnlocked] = useState<boolean>(() => {
@@ -93,7 +93,7 @@ export function PasswordGate({
           </div>
           <div className="space-y-1">
             <h2 className="text-xl font-bold tracking-tight text-foreground">{title}</h2>
-            <p className="text-xs text-muted-foreground">{subtitle}</p>
+            {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
           </div>
         </div>
 

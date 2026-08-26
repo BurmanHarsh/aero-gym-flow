@@ -460,7 +460,6 @@ function MembersPage() {
       requiredPassword="Manu1234"
       storageKey="tbt_member_unlocked"
       title="Member Section Security"
-      subtitle="Enter security password Manu1234 to access member registry and management."
     >
       <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
