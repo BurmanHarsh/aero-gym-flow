@@ -13,6 +13,7 @@ import { Wallet, Banknote, CreditCard, Smartphone, Plus, FileText } from "lucide
 import { toast } from "sonner";
 import { sendReceiptEmail } from "@/lib/aerogym/email.functions";
 import { getAuthCache } from "@/routes/_authenticated/route";
+import { PasswordGate } from "@/components/password-gate";
 
 export const Route = createFileRoute("/_authenticated/billing")({
   head: () => ({ meta: [{ title: "Billing · Tank by Tapan" }] }),
@@ -207,77 +208,83 @@ function BillingPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Billing</h1>
-        <p className="text-sm text-muted-foreground">Invoices, payments and collection health.</p>
-      </header>
+    <PasswordGate
+      requiredPassword="Tank@10#T"
+      storageKey="tbt_admin_unlocked"
+      title="Billing Section Security"
+    >
+      <div className="space-y-6">
+        <header>
+          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Billing</h1>
+          <p className="text-sm text-muted-foreground">Invoices, payments and collection health.</p>
+        </header>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <KPI label="Pending" value={money(totals.pending)} tone="warning" />
-        <KPI label="Paid" value={money(totals.paid)} tone="success" />
-        <KPI label="Total invoices" value={rows.length.toString()} tone="primary" />
-        <KPI label="Collection rate" value={`${rows.length ? Math.round((rows.filter(r => r.status === "paid").length / rows.length) * 100) : 0}%`} tone="secondary" />
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-1 rounded-xl border border-border bg-card p-1">
-          {TABS.map((t) => (
-            <button key={t} onClick={() => setTab(t)} className={`rounded-lg px-3 py-1.5 text-xs font-medium capitalize transition ${tab === t ? "gradient-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>{t}</button>
-          ))}
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <KPI label="Pending" value={money(totals.pending)} tone="warning" />
+          <KPI label="Paid" value={money(totals.paid)} tone="success" />
+          <KPI label="Total invoices" value={rows.length.toString()} tone="primary" />
+          <KPI label="Collection rate" value={`${rows.length ? Math.round((rows.filter(r => r.status === "paid").length / rows.length) * 100) : 0}%`} tone="secondary" />
         </div>
-        <div className="flex items-center gap-2">
-          <Button onClick={handleExportPDF} variant="outline" size="sm" className="h-9 text-xs">
-            <FileText className="mr-1.5 h-3.5 w-3.5" /> Export PDF
-          </Button>
-          {isStaff && (
-            <Dialog open={issueOpen} onOpenChange={setIssueOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm" className="gradient-primary text-primary-foreground shadow-glow h-9 text-xs">
-                  <Plus className="mr-1.5 h-3.5 w-3.5" /> Issue Invoice
-                </Button>
-              </DialogTrigger>
-              <IssueInvoiceDialog plans={plans} onClose={() => { setIssueOpen(false); load(); }} />
-            </Dialog>
-          )}
-        </div>
-      </div>
 
-      <div className="overflow-hidden rounded-2xl border border-border bg-card">
-        {loading ? <div className="p-10 text-center text-sm text-muted-foreground">Loading…</div> :
-        rows.length === 0 ? <div className="p-12 text-center text-sm text-muted-foreground">No invoices in this view.</div> :
-        <div className="divide-y divide-border">
-          {rows.map((inv) => (
-            <button key={inv.id} onClick={() => setActive(inv)} className="flex w-full items-center gap-3 px-5 py-4 text-left transition hover:bg-accent/30">
-              <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary/10 text-primary"><Wallet className="h-4 w-4" /></div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate font-medium">{inv.member?.full_name ?? "—"}</span>
-                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">{inv.invoice_number}</span>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex gap-1 rounded-xl border border-border bg-card p-1">
+            {TABS.map((t) => (
+              <button key={t} onClick={() => setTab(t)} className={`rounded-lg px-3 py-1.5 text-xs font-medium capitalize transition ${tab === t ? "gradient-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>{t}</button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button onClick={handleExportPDF} variant="outline" size="sm" className="h-9 text-xs">
+              <FileText className="mr-1.5 h-3.5 w-3.5" /> Export PDF
+            </Button>
+            {isStaff && (
+              <Dialog open={issueOpen} onOpenChange={setIssueOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" className="gradient-primary text-primary-foreground shadow-glow h-9 text-xs">
+                    <Plus className="mr-1.5 h-3.5 w-3.5" /> Issue Invoice
+                  </Button>
+                </DialogTrigger>
+                <IssueInvoiceDialog plans={plans} onClose={() => { setIssueOpen(false); load(); }} />
+              </Dialog>
+            )}
+          </div>
+        </div>
+
+        <div className="overflow-hidden rounded-2xl border border-border bg-card">
+          {loading ? <div className="p-10 text-center text-sm text-muted-foreground">Loading…</div> :
+          rows.length === 0 ? <div className="p-12 text-center text-sm text-muted-foreground">No invoices in this view.</div> :
+          <div className="divide-y divide-border">
+            {rows.map((inv) => (
+              <button key={inv.id} onClick={() => setActive(inv)} className="flex w-full items-center gap-3 px-5 py-4 text-left transition hover:bg-accent/30">
+                <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary/10 text-primary"><Wallet className="h-4 w-4" /></div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate font-medium">{inv.member?.full_name ?? "—"}</span>
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">{inv.invoice_number}</span>
+                  </div>
+                  <div className="mt-0.5 text-xs text-muted-foreground">Issued {new Date(inv.issued_at).toLocaleDateString()}{inv.due_date && ` · Due ${inv.due_date}`}</div>
                 </div>
-                <div className="mt-0.5 text-xs text-muted-foreground">Issued {new Date(inv.issued_at).toLocaleDateString()}{inv.due_date && ` · Due ${inv.due_date}`}</div>
-              </div>
-              <div className="text-right">
-                <div className="font-semibold">{money(inv.total_cents)}</div>
-                <StatusBadge status={inv.status} />
-              </div>
-            </button>
-          ))}
-        </div>}
-      </div>
-
-      {hasMore && !loading && (
-        <div className="flex justify-center">
-          <Button variant="outline" size="sm" onClick={() => load(false)} className="text-xs">
-            Load more invoices
-          </Button>
+                <div className="text-right">
+                  <div className="font-semibold">{money(inv.total_cents)}</div>
+                  <StatusBadge status={inv.status} />
+                </div>
+              </button>
+            ))}
+          </div>}
         </div>
-      )}
 
-      <Dialog open={!!active} onOpenChange={(o) => !o && setActive(null)}>
-        {active && <PaymentDialog invoice={active} onClose={() => { setActive(null); load(true); }} />}
-      </Dialog>
-    </div>
+        {hasMore && !loading && (
+          <div className="flex justify-center">
+            <Button variant="outline" size="sm" onClick={() => load(false)} className="text-xs">
+              Load more invoices
+            </Button>
+          </div>
+        )}
+
+        <Dialog open={!!active} onOpenChange={(o) => !o && setActive(null)}>
+          {active && <PaymentDialog invoice={active} onClose={() => { setActive(null); load(true); }} />}
+        </Dialog>
+      </div>
+    </PasswordGate>
   );
 }
 

@@ -36,7 +36,7 @@ import {
   posGetBillingStats,
   posGenerateReportPDF
 } from "@/lib/aerogym/pos.functions";
-import { Barcode, ReceiptText, CalendarRange, Download, Ban, Headphones, Flame, Dumbbell, AlertTriangle, Sparkles, Footprints, Shield, Key, Lock, LockOpen } from "lucide-react";
+import { Barcode, ReceiptText, CalendarRange, Download, Ban, Headphones, Flame, Dumbbell, AlertTriangle, Sparkles, Footprints, Lock, LockOpen } from "lucide-react";
 import { BarChart as RechartsBarChart, Bar as RechartsBar, XAxis as RechartsXAxis, YAxis as RechartsYAxis, CartesianGrid as RechartsCartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer as RechartsResponsiveContainer } from "recharts";
 
 export const Route = createFileRoute("/_authenticated/inventory")({
@@ -170,6 +170,7 @@ function InventoryPage() {
   const [sectionPasswordInput, setSectionPasswordInput] = useState("");
   const [sectionPasswordError, setSectionPasswordError] = useState(false);
 
+
   const [addOpen, setAddOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [deletingItem, setDeletingItem] = useState<InventoryItem | null>(null);
@@ -296,7 +297,7 @@ function InventoryPage() {
     outOfStock: rows.filter((r) => r.quantity === 0).length,
   };
 
-  if (!isFrontDesk && !sectionUnlocked) {
+  if (isStaff && !sectionUnlocked) {
     return (
       <div className="flex min-h-[70vh] flex-col items-center justify-center p-4">
         <div className="w-full max-w-md space-y-6 rounded-2xl border border-border bg-card p-8 text-center shadow-xl backdrop-blur">
@@ -375,6 +376,8 @@ function InventoryPage() {
     );
   }
 
+
+
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
@@ -387,7 +390,7 @@ function InventoryPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {!isFrontDesk && (
+          {isStaff && (
             <Button
               variant="outline"
               size="sm"

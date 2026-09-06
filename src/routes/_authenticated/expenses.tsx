@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,8 @@ import {
   Smartphone,
   ShieldAlert,
   FileText,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getAuthCache } from "@/routes/_authenticated/route";
@@ -104,10 +106,19 @@ function ExpensesPage() {
   const [q, setQ] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [methodFilter, setMethodFilter] = useState<string>("all");
+  const [monthFilter, setMonthFilter] = useState<string>("all");
+  const [expandedMonths, setExpandedMonths] = useState<Record<string, boolean>>({});
 
   const [addOpen, setAddOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [deletingExpense, setDeletingExpense] = useState<Expense | null>(null);
+
+  const currentMonthKey = useMemo(() => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    return `${year}-${month}`;
+  }, []);
 
   async function load() {
     setLoading(true);
@@ -133,17 +144,76 @@ function ExpensesPage() {
     load();
   }, [categoryFilter, methodFilter]);
 
+  const monthOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    rows.forEach((r) => {
+      if (r.date) {
+        const parts = r.date.split("-");
+        if (parts.length >= 2) {
+          const key = `${parts[0]}-${parts[1]}`;
+          const dObj = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, 1);
+          const label = dObj.toLocaleString("default", { month: "long", year: "numeric" });
+          map.set(key, label);
+        }
+      }
+    });
+    if (!map.has(currentMonthKey)) {
+      const parts = currentMonthKey.split("-");
+      const dObj = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, 1);
+      map.set(currentMonthKey, dObj.toLocaleString("default", { month: "long", year: "numeric" }));
+    }
+    return Array.from(map.entries())
+      .map(([key, label]) => ({ key, label }))
+      .sort((a, b) => b.key.localeCompare(a.key));
+  }, [rows, currentMonthKey]);
+
+  useEffect(() => {
+    if (monthOptions.length > 0 && Object.keys(expandedMonths).length === 0) {
+      setExpandedMonths({ [monthOptions[0].key]: true });
+    }
+  }, [monthOptions]);
+
+  const toggleMonthExpand = (key: string) => {
+    setExpandedMonths((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
   const filtered = rows.filter((r) => {
     const term = q.toLowerCase();
-    return !term || r.title.toLowerCase().includes(term) || (r.description && r.description.toLowerCase().includes(term));
+    const matchesSearch = !term || r.title.toLowerCase().includes(term) || (r.description && r.description.toLowerCase().includes(term));
+    const matchesMonth = monthFilter === "all" || (r.date && r.date.startsWith(monthFilter));
+    return matchesSearch && matchesMonth;
   });
 
   const totals = {
-    total: rows.reduce((s, r) => s + r.amount_cents, 0),
-    rent: rows.filter((r) => r.category === "Rent").reduce((s, r) => s + r.amount_cents, 0),
-    salaries: rows.filter((r) => r.category === "Salaries").reduce((s, r) => s + r.amount_cents, 0),
-    utilities: rows.filter((r) => r.category === "Utilities").reduce((s, r) => s + r.amount_cents, 0),
+    total: filtered.reduce((s, r) => s + r.amount_cents, 0),
+    rent: filtered.filter((r) => r.category === "Rent").reduce((s, r) => s + r.amount_cents, 0),
+    salaries: filtered.filter((r) => r.category === "Salaries").reduce((s, r) => s + r.amount_cents, 0),
+    utilities: filtered.filter((r) => r.category === "Utilities").reduce((s, r) => s + r.amount_cents, 0),
   };
+
+  const groupedByMonth = useMemo(() => {
+    const map = new Map<string, { key: string; label: string; items: Expense[] }>();
+    filtered.forEach((item) => {
+      let key = currentMonthKey;
+      if (item.date) {
+        const parts = item.date.split("-");
+        if (parts.length >= 2) {
+          key = `${parts[0]}-${parts[1]}`;
+        }
+      }
+      if (!map.has(key)) {
+        const parts = key.split("-");
+        const dObj = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, 1);
+        const label = dObj.toLocaleString("default", { month: "long", year: "numeric" });
+        map.set(key, { key, label, items: [] });
+      }
+      map.get(key)!.items.push(item);
+    });
+    return Array.from(map.values()).sort((a, b) => b.key.localeCompare(a.key));
+  }, [filtered, currentMonthKey]);
 
   function handleExportPDF() {
     if (filtered.length === 0) {
@@ -155,6 +225,10 @@ function ExpensesPage() {
       toast.error("Popup blocked! Please allow popups to export PDF.");
       return;
     }
+
+    const monthLabelText = monthFilter !== "all" 
+      ? (monthOptions.find(m => m.key === monthFilter)?.label || monthFilter) 
+      : "All Months";
 
     const htmlContent = `
       <html>
@@ -201,7 +275,7 @@ function ExpensesPage() {
         </head>
         <body>
           <h1>Tank by Tapan</h1>
-          <div class="subtitle">Expenses Report · Generated on ${new Date().toLocaleDateString()}</div>
+          <div class="subtitle">Expenses Report (${monthLabelText}) · Generated on ${new Date().toLocaleDateString()}</div>
           <table>
             <thead>
               <tr>
@@ -244,7 +318,7 @@ function ExpensesPage() {
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Expense Management</h1>
-          <p className="text-sm text-muted-foreground">Track operating expenses, rent, payouts, and utility bills.</p>
+          <p className="text-sm text-muted-foreground">Track operating expenses, rent, payouts, and utility bills month by month.</p>
         </div>
         <div className="flex items-center gap-2">
           <Button onClick={handleExportPDF} variant="outline">
@@ -263,7 +337,7 @@ function ExpensesPage() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <KPI label="Total Expenses" value={money(totals.total)} tone="destructive" />
+        <KPI label={monthFilter === "all" ? "Total Expenses (All)" : "Month Expenses"} value={money(totals.total)} tone="destructive" />
         <KPI label="Rent & Space" value={money(totals.rent)} tone="primary" />
         <KPI label="Staff Payouts" value={money(totals.salaries)} tone="success" />
         <KPI label="Utilities & Bills" value={money(totals.utilities)} tone="warning" />
@@ -281,6 +355,19 @@ function ExpensesPage() {
           />
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <div>
+            <Select value={monthFilter} onValueChange={setMonthFilter}>
+              <SelectTrigger className="w-[160px] bg-background/50">
+                <SelectValue placeholder="Month" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Months</SelectItem>
+                {monthOptions.map((m) => (
+                  <SelectItem key={m.key} value={m.key}>{m.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div>
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
               <SelectTrigger className="w-[140px] bg-background/50">
@@ -310,13 +397,156 @@ function ExpensesPage() {
         </div>
       </div>
 
-      {/* Expense Log */}
-      <div className="overflow-hidden rounded-2xl border border-border bg-card">
-        {loading ? (
-          <div className="p-10 text-center text-sm text-muted-foreground">Loading expenses...</div>
-        ) : filtered.length === 0 ? (
-          <div className="p-12 text-center text-sm text-muted-foreground">No expenses found matching the criteria.</div>
-        ) : (
+      {/* Expense Log View (Grouped by Month when monthFilter === "all" and no search query, else Flat List) */}
+      {loading ? (
+        <div className="overflow-hidden rounded-2xl border border-border bg-card p-10 text-center text-sm text-muted-foreground">
+          Loading expenses...
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="overflow-hidden rounded-2xl border border-border bg-card p-12 text-center text-sm text-muted-foreground">
+          No expenses found matching the criteria.
+        </div>
+      ) : monthFilter === "all" && !q.trim() ? (
+        /* Month-Wise Accordion View */
+        <div className="space-y-4">
+          {groupedByMonth.map((mGroup) => {
+            const isExpanded = !!expandedMonths[mGroup.key];
+            const isCurrentMonth = mGroup.key === currentMonthKey;
+
+            const groupTotal = mGroup.items.reduce((s, r) => s + r.amount_cents, 0);
+            const rentTotal = mGroup.items.filter((r) => r.category === "Rent").reduce((s, r) => s + r.amount_cents, 0);
+            const salariesTotal = mGroup.items.filter((r) => r.category === "Salaries").reduce((s, r) => s + r.amount_cents, 0);
+            const utilitiesTotal = mGroup.items.filter((r) => r.category === "Utilities").reduce((s, r) => s + r.amount_cents, 0);
+
+            return (
+              <div
+                key={mGroup.key}
+                className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden transition-all hover:border-primary/30"
+              >
+                {/* Month Accordion Header */}
+                <button
+                  type="button"
+                  onClick={() => toggleMonthExpand(mGroup.key)}
+                  className="w-full p-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between bg-muted/20 hover:bg-muted/40 transition-colors text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-xl bg-primary/10 p-2.5 text-primary border border-primary/20">
+                      <Calendar className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-base font-bold text-foreground flex items-center gap-2">
+                        {mGroup.label}
+                        {isCurrentMonth ? (
+                          <span className="rounded-full bg-blue-500/10 text-blue-500 border border-blue-500/20 px-2.5 py-0.5 text-[10px] font-semibold">
+                            Active Month
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-muted/80 text-muted-foreground border border-border px-2 py-0.5 text-[10px] font-semibold">
+                            {mGroup.items.length} {mGroup.items.length === 1 ? "expense" : "expenses"}
+                          </span>
+                        )}
+                      </h4>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Total logged: <span className="font-semibold text-foreground">{money(groupTotal)}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs md:text-right">
+                    <div>
+                      <span className="block text-muted-foreground">Rent</span>
+                      <span className="font-semibold text-primary">{money(rentTotal)}</span>
+                    </div>
+                    <div>
+                      <span className="block text-muted-foreground">Salaries</span>
+                      <span className="font-semibold text-emerald-500">{money(salariesTotal)}</span>
+                    </div>
+                    <div>
+                      <span className="block text-muted-foreground">Utilities</span>
+                      <span className="font-semibold text-amber-500">{money(utilitiesTotal)}</span>
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
+                      <div>
+                        <span className="block text-muted-foreground">Month Total</span>
+                        <span className="font-bold text-rose-500">{money(groupTotal)}</span>
+                      </div>
+                      {isExpanded ? (
+                        <ChevronDown className="h-5 w-5 text-muted-foreground ml-2" />
+                      ) : (
+                        <ChevronRight className="h-5 w-5 text-muted-foreground ml-2" />
+                      )}
+                    </div>
+                  </div>
+                </button>
+
+                {/* Expanded Month Content Table */}
+                {isExpanded && (
+                  <div className="border-t border-border divide-y divide-border bg-background/30">
+                    {mGroup.items.map((item) => {
+                      const CatIcon = getCategoryIcon(item.category);
+                      const MethodIcon = getMethodIcon(item.payment_method);
+                      return (
+                        <div
+                          key={item.id}
+                          className="flex w-full items-center gap-4 px-5 py-4 text-left hover:bg-accent/10 transition"
+                        >
+                          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground">
+                            <CatIcon className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-baseline gap-2">
+                              <span className="font-medium text-foreground">{item.title}</span>
+                              <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground tracking-wider uppercase">
+                                {item.category}
+                              </span>
+                            </div>
+                            <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                              <span className="inline-flex items-center gap-1">
+                                <Calendar className="h-3.5 w-3.5" />
+                                {new Date(item.date).toLocaleDateString()}
+                              </span>
+                              <span className="inline-flex items-center gap-1">
+                                <MethodIcon className="h-3.5 w-3.5" />
+                                {item.payment_method}
+                              </span>
+                              {item.description && <span className="truncate max-w-[280px]">· {item.description}</span>}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <div className="text-right">
+                              <div className="font-semibold text-foreground">{money(item.amount_cents)}</div>
+                            </div>
+                            <div className="flex gap-1.5">
+                              <Button
+                                onClick={() => setEditingExpense(item)}
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
+                              >
+                                <Edit2 className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                onClick={() => setDeletingExpense(item)}
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-muted"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* Single List View for Filtered Month or Search */
+        <div className="overflow-hidden rounded-2xl border border-border bg-card">
           <div className="divide-y divide-border">
             {filtered.map((item) => {
               const CatIcon = getCategoryIcon(item.category);
@@ -375,8 +605,8 @@ function ExpensesPage() {
               );
             })}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Edit Expense Dialog */}
       <Dialog open={!!editingExpense} onOpenChange={(o) => !o && setEditingExpense(null)}>
