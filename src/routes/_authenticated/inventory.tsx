@@ -297,7 +297,7 @@ function InventoryPage() {
     outOfStock: rows.filter((r) => r.quantity === 0).length,
   };
 
-  if (isStaff && !sectionUnlocked) {
+  if (isStaff && !isFrontDesk && !sectionUnlocked) {
     return (
       <div className="flex min-h-[70vh] flex-col items-center justify-center p-4">
         <div className="w-full max-w-md space-y-6 rounded-2xl border border-border bg-card p-8 text-center shadow-xl backdrop-blur">
@@ -390,7 +390,7 @@ function InventoryPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {isStaff && (
+          {isStaff && !isFrontDesk && (
             <Button
               variant="outline"
               size="sm"
